@@ -1,0 +1,7 @@
+{
+  "name": "CRM de Admisiones Pro",
+  "description": "Un sistema integral para la gestión de leads y oportunidades, con dashboards de KPIs, importación/exportación de datos y flujos de conversión de ventas.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
