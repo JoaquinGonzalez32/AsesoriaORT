@@ -28,7 +28,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
   const [faseFilter, setFaseFilter] = useState('');
   const [rasAgendadaFilter, setRasAgendadaFilter] = useState('');
   const [rasAsistioFilter, setRasAsistioFilter] = useState('');
-  const [careerFilter, setCareerFilter] = useState('');
+  const [careerFilter, setCareerFilter] = useState<string[]>([]);
   
   // Estados de UI
   const [showModal, setShowModal] = useState(false);
@@ -40,6 +40,8 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
   const [originalOtrosIntereses, setOriginalOtrosIntereses] = useState<string[]>([]);
   const [mainCarrera, setMainCarrera] = useState('');
   const [expandedContacts, setExpandedContacts] = useState<string[]>([]);
+  const [showCareerDropdown, setShowCareerDropdown] = useState(false);
+  const careerDropdownRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -50,6 +52,16 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
     }
     return () => { document.body.style.overflow = ''; };
   }, [showModal]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (careerDropdownRef.current && !careerDropdownRef.current.contains(e.target as Node)) {
+        setShowCareerDropdown(false);
+      }
+    };
+    if (showCareerDropdown) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showCareerDropdown]);
 
   const CARRERAS_OPTIONS = ['LV', 'WY', 'LT', 'LD', 'YN', 'LG', 'VD', 'UI', 'GF', 'WE'];
 
@@ -75,35 +87,12 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
       const matchesDateTo = !dateTo || o.fecha_lead <= dateTo;
       const matchesProceso = !procesoFilter || o.proceso_inicio === procesoFilter;
       const matchesFase = !faseFilter || o.fase_oportunidad === faseFilter;
-      const matchesCareer = !careerFilter || o.carrera_interes === careerFilter;
       const matchesRasAgendada = !rasAgendadaFilter || (rasAgendadaFilter === 'true' ? o.ras_agendada : !o.ras_agendada);
       const matchesRasAsistio = !rasAsistioFilter || (rasAsistioFilter === 'true' ? o.ras_asistio : !o.ras_asistio);
-      
-      return matchesSearch && matchesDateFrom && matchesDateTo && matchesProceso && matchesFase && matchesRasAgendada && matchesRasAsistio && matchesCareer;
+
+      return matchesSearch && matchesDateFrom && matchesDateTo && matchesProceso && matchesFase && matchesRasAgendada && matchesRasAsistio;
     });
-  }, [opportunities, filter, dateFrom, dateTo, procesoFilter, faseFilter, rasAgendadaFilter, rasAsistioFilter, careerFilter]);
-
-  const stats = useMemo(() => {
-    const total = activeOpps.length;
-    const inscriptos = activeOpps.filter(o => o.fase_oportunidad === FaseOportunidad.Inscripto).length;
-
-    const pipelineData = Object.values(FaseOportunidad).map(fase => ({
-      name: fase,
-      value: activeOpps.filter(o => o.fase_oportunidad === fase).length
-    }));
-
-    const careerMap: Record<string, number> = {};
-    activeOpps.forEach(o => {
-      careerMap[o.carrera_interes] = (careerMap[o.carrera_interes] || 0) + 1;
-    });
-    const careerData = Object.entries(careerMap).map(([name, value]) => ({ name, value }));
-
-    const getSape = (o: Oportunidad) => o.sape != null ? String(o.sape).trim() : '';
-    const contactos = new Set(activeOpps.map(getSape).filter(Boolean)).size
-      + activeOpps.filter(o => !getSape(o)).length;
-
-    return { total, inscriptos, contactos, pipelineData, careerData };
-  }, [activeOpps]);
+  }, [opportunities, filter, dateFrom, dateTo, procesoFilter, faseFilter, rasAgendadaFilter, rasAsistioFilter]);
 
   // Agrupar oportunidades por SAPE (contacto)
   const groupedBySape = useMemo(() => {
@@ -142,6 +131,40 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
     return groups;
   }, [activeOpps]);
 
+  // Filtrar grupos por carrera: el contacto debe tener AL MENOS todas las carreras seleccionadas
+  const filteredGroups = useMemo(() => {
+    if (careerFilter.length === 0) return groupedBySape;
+    return groupedBySape.filter(group => {
+      const groupCareers = new Set(group.opps.map(o => o.carrera_interes));
+      return careerFilter.every(c => groupCareers.has(c));
+    });
+  }, [groupedBySape, careerFilter]);
+
+  // Opps que se muestran (para stats)
+  const displayOpps = useMemo(() => {
+    return filteredGroups.flatMap(g => g.opps);
+  }, [filteredGroups]);
+
+  const stats = useMemo(() => {
+    const total = displayOpps.length;
+    const inscriptos = displayOpps.filter(o => o.fase_oportunidad === FaseOportunidad.Inscripto).length;
+
+    const pipelineData = Object.values(FaseOportunidad).map(fase => ({
+      name: fase,
+      value: displayOpps.filter(o => o.fase_oportunidad === fase).length
+    }));
+
+    const careerMap: Record<string, number> = {};
+    displayOpps.forEach(o => {
+      careerMap[o.carrera_interes] = (careerMap[o.carrera_interes] || 0) + 1;
+    });
+    const careerData = Object.entries(careerMap).map(([name, value]) => ({ name, value }));
+
+    const contactos = filteredGroups.length;
+
+    return { total, inscriptos, contactos, pipelineData, careerData };
+  }, [displayOpps, filteredGroups]);
+
   const toggleContact = (key: string) => {
     setExpandedContacts(prev =>
       prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
@@ -167,7 +190,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
     setFaseFilter('');
     setRasAgendadaFilter('');
     setRasAsistioFilter('');
-    setCareerFilter('');
+    setCareerFilter([]);
   };
 
   const handleSubmitForm = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -456,12 +479,48 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
               {PROCESO_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
-          <div>
-            <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Carrera</label>
-            <select value={careerFilter} onChange={(e) => setCareerFilter(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold text-purple-700 cursor-pointer">
-              <option value="">Todas</option>
-              {CARRERAS_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+          <div className="relative" ref={careerDropdownRef}>
+            <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Carreras</label>
+            <button
+              type="button"
+              onClick={() => setShowCareerDropdown(prev => !prev)}
+              className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold text-purple-700 cursor-pointer text-left flex items-center justify-between gap-2"
+            >
+              <span className="truncate">
+                {careerFilter.length === 0 ? 'Todas' : careerFilter.join(', ')}
+              </span>
+              <svg className={`w-4 h-4 shrink-0 text-gray-400 transition-transform ${showCareerDropdown ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            {showCareerDropdown && (
+              <div className="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg py-1 max-h-60 overflow-y-auto">
+                {CARRERAS_OPTIONS.map(c => {
+                  const isSelected = careerFilter.includes(c);
+                  return (
+                    <label
+                      key={c}
+                      className={`flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-purple-50 transition-colors ${isSelected ? 'bg-purple-50' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => setCareerFilter(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])}
+                        className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                      />
+                      <span className={`text-sm font-bold ${isSelected ? 'text-purple-700' : 'text-gray-700'}`}>{c}</span>
+                    </label>
+                  );
+                })}
+                {careerFilter.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setCareerFilter([])}
+                    className="w-full text-center text-[10px] font-black uppercase text-red-500 hover:bg-red-50 py-2 border-t border-gray-100 transition-colors"
+                  >
+                    Limpiar selección
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           <div>
             <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Realiza RAS</label>
@@ -487,7 +546,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
 
       {/* Contactos agrupados por SAPE */}
       <div className="space-y-3">
-        {groupedBySape.length > 0 ? groupedBySape.map(group => {
+        {filteredGroups.length > 0 ? filteredGroups.map(group => {
           const isExpanded = expandedContacts.includes(group.key);
           const hasMultiple = group.opps.length > 1;
           const c = group.contact;
