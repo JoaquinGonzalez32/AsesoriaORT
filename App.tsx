@@ -97,11 +97,11 @@ const App: React.FC = () => {
     if (error) return <div className="text-center p-20"><p className="text-red-500 font-bold">{error}</p></div>;
     return (
       <Routes>
-        <Route path={ROUTES.DASHBOARD} element={<Dashboard leads={leads} opportunities={opportunities} />} />
+        <Route path={ROUTES.DASHBOARD} element={<Dashboard leads={leads} opportunities={opportunities} rases={rases} />} />
         <Route path={ROUTES.LEADS} element={<LeadsManager leads={leads} onAdd={handleAddLead} onUpdate={updateLead} onDelete={deleteLead} onConvert={convertToOpportunity} />} />
         <Route path={ROUTES.OPPORTUNITIES} element={<OpportunitiesManager opportunities={opportunities} onAdd={handleAddOpp} onUpdate={updateOpp} onDelete={deleteOpp} />} />
         <Route path={ROUTES.RASES} element={<RasesManager rases={rases} onAdd={addRas} onDelete={deleteRas} />} />
-        <Route path="*" element={<Dashboard leads={leads} opportunities={opportunities} />} />
+        <Route path="*" element={<Dashboard leads={leads} opportunities={opportunities} rases={rases} />} />
       </Routes>
     );
   };

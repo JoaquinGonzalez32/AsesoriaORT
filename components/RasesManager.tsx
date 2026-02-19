@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useRef } from 'react';
 import { RAS, ModalidadRAS } from '../types';
 import { PieChart, Pie, BarChart, Bar, XAxis, YAxis, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { exportChartsAsImage, exportChartsAsCSV, ChartData } from '../lib/exportChart';
 
 interface RasesManagerProps {
   rases: RAS[];
@@ -135,6 +136,51 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, onAdd, onDelete }) =
 
   return (
     <div className="space-y-6 animate-in slide-in-from-bottom-2 duration-300">
+      {/* Header Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Agenda de RASES</h2>
+          <p className="text-sm text-gray-500">Control de reuniones de asesoramiento</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <input type="file" ref={fileInputRef} onChange={handleImportCSV} accept=".csv" className="hidden" />
+          <button
+            onClick={() => {
+              const charts: ChartData[] = [
+                { title: 'Modalidad', data: stats.pieData.map(d => ({ name: d.name, value: d.value, color: d.color })), type: 'pie' },
+                { title: 'RAS por Agente', data: stats.agenteData.map((d, i) => ({ ...d, color: AGENTE_COLORS[i % AGENTE_COLORS.length] })), type: 'bar-horizontal' },
+                ...(stats.carreraData.length > 0 ? [{ title: 'RAS por Carrera', data: stats.carreraData.map((d, i) => ({ ...d, color: CARRERA_COLORS[i % CARRERA_COLORS.length] })), type: 'bar' as const }] : []),
+              ];
+              exportChartsAsImage(charts, 'rases_graficas');
+            }}
+            className="bg-white border border-gray-200 text-gray-700 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-gray-50 transition-all flex items-center gap-2 active:scale-95"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Imagen
+          </button>
+          <button
+            onClick={() => {
+              const charts: ChartData[] = [
+                { title: 'Modalidad', data: stats.pieData.map(d => ({ name: d.name, value: d.value })), type: 'pie' },
+                { title: 'RAS por Agente', data: stats.agenteData, type: 'bar-horizontal' },
+                ...(stats.carreraData.length > 0 ? [{ title: 'RAS por Carrera', data: stats.carreraData, type: 'bar' as const }] : []),
+              ];
+              exportChartsAsCSV(charts, 'rases_datos');
+            }}
+            className="bg-white border border-gray-200 text-gray-700 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-gray-50 transition-all flex items-center gap-2 active:scale-95"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            CSV
+          </button>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="bg-blue-50 text-blue-700 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-blue-100 transition-all flex items-center gap-2 active:scale-95"
+          >
+            Importar CSV
+          </button>
+        </div>
+      </div>
+
       {/* KPI Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
@@ -238,22 +284,6 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, onAdd, onDelete }) =
         </div>
       )}
 
-      {/* Header Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Agenda de RASES</h2>
-          <p className="text-sm text-gray-500">Control de reuniones de asesoramiento</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <input type="file" ref={fileInputRef} onChange={handleImportCSV} accept=".csv" className="hidden" />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="bg-blue-50 text-blue-700 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-blue-100 transition-all flex items-center gap-2 active:scale-95"
-          >
-            Importar CSV
-          </button>
-        </div>
-      </div>
 
       {/* Filter Bar */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">

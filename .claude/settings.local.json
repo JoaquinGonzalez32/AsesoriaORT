@@ -3,7 +3,10 @@
     "allow": [
       "Bash(npm install:*)",
       "Bash(npx tsc:*)",
-      "Bash(npx vite build)"
+      "Bash(npx vite build)",
+      "Bash(grep:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(npx tsx:*)"
     ]
   }
 }

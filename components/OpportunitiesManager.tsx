@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Oportunidad, FaseOportunidad, LiceoTipo, ModalidadRAS } from '../types';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { exportChartsAsImage, exportChartsAsCSV, ChartData } from '../lib/exportChart';
 
 class OppErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: string | null }> {
   state = { error: null as string | null };
@@ -406,7 +407,27 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
             Importar
           </button>
           <button onClick={handleExportCSV} className="bg-white border border-gray-200 text-gray-700 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-gray-50 transition-all flex items-center gap-2 active:scale-95">
-            Exportar
+            Exportar CSV
+          </button>
+          <button onClick={() => {
+            const charts: ChartData[] = [
+              { title: 'Pipeline Actual', data: stats.pipelineData.map((d, i) => ({ ...d, color: '#2563eb' })), type: 'bar' },
+              { title: 'Mix de Carreras', data: stats.careerData.map((d, i) => ({ ...d, color: '#9333ea' })), type: 'bar' },
+            ];
+            exportChartsAsImage(charts, 'oportunidades_graficas');
+          }} className="bg-white border border-gray-200 text-gray-700 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-gray-50 transition-all flex items-center gap-2 active:scale-95">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Imagen
+          </button>
+          <button onClick={() => {
+            const charts: ChartData[] = [
+              { title: 'Pipeline Actual', data: stats.pipelineData, type: 'bar' },
+              { title: 'Mix de Carreras', data: stats.careerData, type: 'bar' },
+            ];
+            exportChartsAsCSV(charts, 'oportunidades_datos');
+          }} className="bg-white border border-gray-200 text-gray-700 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-gray-50 transition-all flex items-center gap-2 active:scale-95">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            CSV
           </button>
           <button onClick={() => { setEditingOpp(null); setMultipleInteres(false); setOtrosIntereses([]); setOriginalOtrosIntereses([]); setMainCarrera(CARRERAS_OPTIONS[0]); setShowModal(true); }} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold shadow-md hover:bg-blue-700 transition-all active:scale-95">
             + Nueva Opp

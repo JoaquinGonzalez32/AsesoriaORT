@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Lead, ResultadoLlamada, HorarioLlamada, ModalidadRAS, FaseOportunidad, LiceoTipo } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { exportChartsAsImage, exportChartsAsCSV, ChartData } from '../lib/exportChart';
 
 interface LeadsManagerProps {
   leads: Lead[];
@@ -255,6 +256,28 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
             </button>
           )}
           <input type="file" ref={fileInputRef} onChange={handleImportCSV} accept=".csv" className="hidden" />
+          <button onClick={() => {
+            const charts: ChartData[] = [{
+              title: stats.chartTitle,
+              data: stats.chartData.map((d, i) => ({ ...d, color: RESULTADO_HEX[d.name] || (i % 2 === 0 ? '#2563eb' : '#93c5fd') })),
+              type: 'bar-horizontal',
+            }];
+            exportChartsAsImage(charts, 'leads_graficas');
+          }} className="w-full sm:w-auto bg-white border border-gray-200 text-gray-700 px-6 py-2.5 rounded-xl font-bold shadow-sm hover:bg-gray-50 transition-all text-sm active:scale-95 whitespace-nowrap flex items-center justify-center gap-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Imagen
+          </button>
+          <button onClick={() => {
+            const charts: ChartData[] = [{
+              title: stats.chartTitle,
+              data: stats.chartData,
+              type: 'bar-horizontal',
+            }];
+            exportChartsAsCSV(charts, 'leads_datos');
+          }} className="w-full sm:w-auto bg-white border border-gray-200 text-gray-700 px-6 py-2.5 rounded-xl font-bold shadow-sm hover:bg-gray-50 transition-all text-sm active:scale-95 whitespace-nowrap flex items-center justify-center gap-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            CSV
+          </button>
           <button onClick={() => fileInputRef.current?.click()} className="w-full sm:w-auto bg-gray-100 text-gray-700 px-6 py-2.5 rounded-xl font-bold shadow-sm hover:bg-gray-200 transition-all text-sm active:scale-95 whitespace-nowrap">
             Importar CSV
           </button>
