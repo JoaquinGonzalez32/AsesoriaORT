@@ -80,7 +80,7 @@ DROP POLICY IF EXISTS "Leads_Select_Policy" ON leads;
 CREATE POLICY "Leads_Select_Policy" ON leads FOR SELECT TO authenticated USING (true);
 
 DROP POLICY IF EXISTS "Leads_Insert_Policy" ON leads;
-CREATE POLICY "Leads_Insert_Policy" ON leads FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "Leads_Insert_Policy" ON leads FOR INSERT TO authenticated WITH CHECK (owner = auth.uid());
 
 DROP POLICY IF EXISTS "Leads_Update_Policy" ON leads;
 CREATE POLICY "Leads_Update_Policy" ON leads FOR UPDATE TO authenticated USING (true) WITH CHECK (true);

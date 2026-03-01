@@ -48,9 +48,8 @@ export function useOpportunities(rasActions: RasActions) {
       updated_at: new Date().toISOString(),
     };
 
-    console.log('[addOpp] payload:', oppToSave);
     const { data, error } = await supabase.from('oportunidades').insert([oppToSave]).select();
-    if (error) { console.error('[addOpp] Supabase error:', error); throw error; }
+    if (error) { throw error; }
 
     const newOpp = data[0];
     setOpportunities(prev => [newOpp, ...prev]);
@@ -76,9 +75,8 @@ export function useOpportunities(rasActions: RasActions) {
       updated_at: new Date().toISOString(),
     };
 
-    console.log('[updateOpp] payload:', dbPayload);
     const { error } = await supabase.from('oportunidades').update(dbPayload).eq('opp_id', opp_id);
-    if (error) { console.error('[updateOpp] Supabase error:', error); throw error; }
+    if (error) { throw error; }
     setOpportunities(prev => prev.map(o => o.opp_id === updated.opp_id ? updated : o));
 
     if (updated.ras_agendada && rasInfo) {
