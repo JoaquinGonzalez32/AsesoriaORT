@@ -65,6 +65,7 @@ export interface Oportunidad {
   multiple_interes: boolean;
   liceo_tipo: LiceoTipo;
   ras_hecha_por: string | null;
+  owner: string | null;
   proceso_inicio: string;
   fase_oportunidad: FaseOportunidad;
   comentario_extra: string;
@@ -83,6 +84,7 @@ export interface RAS {
   modalidad: ModalidadRAS;
   carrera: string;
   estado_oportunidad: string;
+  owner: string | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;

@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS oportunidades (
   multiple_interes BOOLEAN DEFAULT FALSE,
   liceo_tipo liceo_tipo_enum DEFAULT 'Publico',
   ras_hecha_por UUID REFERENCES auth.users(id),
+  owner UUID REFERENCES auth.users(id),
   proceso_inicio proceso_inicio_enum DEFAULT 'Pendiente',
   comentario_extra TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -63,6 +64,7 @@ CREATE TABLE IF NOT EXISTS rases (
   modalidad TEXT NOT NULL,
   carrera TEXT,
   estado_oportunidad TEXT,
+  owner UUID REFERENCES auth.users(id),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   deleted_at TIMESTAMPTZ
@@ -95,7 +97,7 @@ DROP POLICY IF EXISTS "Opps_Select_Policy" ON oportunidades;
 CREATE POLICY "Opps_Select_Policy" ON oportunidades FOR SELECT TO authenticated USING (true);
 
 DROP POLICY IF EXISTS "Opps_Insert_Policy" ON oportunidades;
-CREATE POLICY "Opps_Insert_Policy" ON oportunidades FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "Opps_Insert_Policy" ON oportunidades FOR INSERT TO authenticated WITH CHECK (owner = auth.uid());
 
 DROP POLICY IF EXISTS "Opps_Update_Policy" ON oportunidades;
 CREATE POLICY "Opps_Update_Policy" ON oportunidades FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
@@ -110,7 +112,7 @@ DROP POLICY IF EXISTS "Rases_Select_Policy" ON rases;
 CREATE POLICY "Rases_Select_Policy" ON rases FOR SELECT TO authenticated USING (true);
 
 DROP POLICY IF EXISTS "Rases_Insert_Policy" ON rases;
-CREATE POLICY "Rases_Insert_Policy" ON rases FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "Rases_Insert_Policy" ON rases FOR INSERT TO authenticated WITH CHECK (owner = auth.uid());
 
 DROP POLICY IF EXISTS "Rases_Update_Policy" ON rases;
 CREATE POLICY "Rases_Update_Policy" ON rases FOR UPDATE TO authenticated USING (true) WITH CHECK (true);

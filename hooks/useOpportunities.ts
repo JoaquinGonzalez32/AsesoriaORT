@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { Oportunidad } from '../types';
 
 interface RasActions {
-  addRas: (rasData: any) => Promise<any>;
+  addRas: (rasData: any, userId?: string) => Promise<any>;
   updateRas: (rasId: string, rasData: any) => Promise<void>;
 }
 
@@ -44,6 +44,7 @@ export function useOpportunities(rasActions: RasActions) {
     const oppToSave = {
       ...pickValidCols(rest),
       ras_hecha_por: userId || null,
+      owner: userId || null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -64,7 +65,7 @@ export function useOpportunities(rasActions: RasActions) {
         modalidad: rasInfo.modalidad,
         carrera: newOpp.carrera_interes,
         estado_oportunidad: newOpp.proceso_inicio,
-      });
+      }, userId);
     }
   };
 

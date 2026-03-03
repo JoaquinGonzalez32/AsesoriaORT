@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Oportunidad, FaseOportunidad, LiceoTipo, ModalidadRAS } from '../types';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { exportChartsAsImage, exportChartsAsCSV, ChartData } from '../lib/exportChart';
+import { parseNLQuery, SmartCondition, NLOperator } from '../lib/nlParser';
 
 class OppErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: string | null }> {
   state = { error: null as string | null };
@@ -29,7 +30,10 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
   const [rasAgendadaFilter, setRasAgendadaFilter] = useState('');
   const [rasAsistioFilter, setRasAsistioFilter] = useState('');
   const [careerFilter, setCareerFilter] = useState<string[]>([]);
-  
+  const [nlQuery, setNlQuery] = useState('');
+  const [smartConditions, setSmartConditions] = useState<SmartCondition[]>([]);
+  const [nlOperator, setNlOperator] = useState<NLOperator>('AND');
+
   // Estados de UI
   const [showModal, setShowModal] = useState(false);
   const [editingOpp, setEditingOpp] = useState<Oportunidad | null>(null);
@@ -86,13 +90,15 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
       const matchesDateFrom = !dateFrom || o.fecha_lead >= dateFrom;
       const matchesDateTo = !dateTo || o.fecha_lead <= dateTo;
       const matchesProceso = !procesoFilter || o.proceso_inicio === procesoFilter;
-      const matchesFase = !faseFilter || o.fase_oportunidad === faseFilter;
+      const matchesFase = smartConditions.length > 0
+        ? true
+        : (!faseFilter || o.fase_oportunidad === faseFilter);
       const matchesRasAgendada = !rasAgendadaFilter || (rasAgendadaFilter === 'true' ? o.ras_agendada : !o.ras_agendada);
       const matchesRasAsistio = !rasAsistioFilter || (rasAsistioFilter === 'true' ? o.ras_asistio : !o.ras_asistio);
 
       return matchesSearch && matchesDateFrom && matchesDateTo && matchesProceso && matchesFase && matchesRasAgendada && matchesRasAsistio;
     });
-  }, [opportunities, filter, dateFrom, dateTo, procesoFilter, faseFilter, rasAgendadaFilter, rasAsistioFilter]);
+  }, [opportunities, filter, dateFrom, dateTo, procesoFilter, faseFilter, rasAgendadaFilter, rasAsistioFilter, smartConditions]);
 
   // Agrupar oportunidades por SAPE (contacto)
   const groupedBySape = useMemo(() => {
@@ -133,12 +139,24 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
 
   // Filtrar grupos por carrera: el contacto debe tener AL MENOS todas las carreras seleccionadas
   const filteredGroups = useMemo(() => {
+    if (smartConditions.length > 0) {
+      const matcher = (condition: SmartCondition) => (group: { opps: Oportunidad[] }) =>
+        group.opps.some(opp =>
+          opp.carrera_interes === condition.carrera &&
+          (condition.fase === null || opp.fase_oportunidad === condition.fase)
+        );
+      return groupedBySape.filter(group =>
+        nlOperator === 'OR'
+          ? smartConditions.some(c => matcher(c)(group))
+          : smartConditions.every(c => matcher(c)(group))
+      );
+    }
     if (careerFilter.length === 0) return groupedBySape;
     return groupedBySape.filter(group => {
       const groupCareers = new Set(group.opps.map(o => o.carrera_interes));
       return careerFilter.every(c => groupCareers.has(c));
     });
-  }, [groupedBySape, careerFilter]);
+  }, [groupedBySape, careerFilter, smartConditions, nlOperator]);
 
   // Opps que se muestran (para stats)
   const displayOpps = useMemo(() => {
@@ -191,6 +209,34 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
     setRasAgendadaFilter('');
     setRasAsistioFilter('');
     setCareerFilter([]);
+    setNlQuery('');
+    setSmartConditions([]);
+    setNlOperator('AND');
+  };
+
+  const handleNLSearch = (query: string) => {
+    setNlQuery(query);
+    if (!query.trim()) {
+      setSmartConditions([]);
+      setNlOperator('AND');
+      return;
+    }
+    const parsed = parseNLQuery(query);
+    setSmartConditions(parsed.conditions);
+    setNlOperator(parsed.operator);
+
+    if (parsed.rasAgendada !== undefined) setRasAgendadaFilter(parsed.rasAgendada ? 'true' : 'false');
+    if (parsed.rasAsistio !== undefined) setRasAsistioFilter(parsed.rasAsistio ? 'true' : 'false');
+
+    const carreras = parsed.conditions.map(c => c.carrera);
+    setCareerFilter(carreras);
+
+    const fases = [...new Set(parsed.conditions.map(c => c.fase).filter(Boolean))];
+    if (fases.length === 1 && fases[0]) {
+      setFaseFilter(fases[0]);
+    } else {
+      setFaseFilter('');
+    }
   };
 
   const handleSubmitForm = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -456,6 +502,60 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
             + Nueva Opp
           </button>
         </div>
+      </div>
+
+      {/* NL Search Panel */}
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-blue-100">
+        <div className="flex items-center gap-2 mb-2">
+          <svg className="w-4 h-4 text-blue-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6" strokeLinecap="round"/></svg>
+          <span className="text-[11px] font-black uppercase text-blue-600 tracking-wide">Búsqueda inteligente</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            placeholder='Ej: "inscriptos de UI que también tengan interés en VD"'
+            value={nlQuery}
+            onChange={e => handleNLSearch(e.target.value)}
+            className="flex-1 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-400 outline-none transition-all placeholder:text-blue-300"
+          />
+          {nlQuery && (
+            <button
+              type="button"
+              onClick={() => { setNlQuery(''); setSmartConditions([]); setNlOperator('AND'); setCareerFilter([]); setFaseFilter(''); }}
+              className="text-gray-400 hover:text-gray-700 transition-colors p-1.5 rounded-lg hover:bg-gray-100"
+              title="Limpiar búsqueda inteligente"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12" strokeLinecap="round"/></svg>
+            </button>
+          )}
+        </div>
+        {nlQuery && (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-semibold text-gray-400 uppercase">Interpretado como:</span>
+            {smartConditions.length > 0 ? (
+              <>
+                {smartConditions.map((c, i) => (
+                  <React.Fragment key={i}>
+                    {i > 0 && (
+                      <span className={`text-[10px] font-black uppercase px-1.5 ${nlOperator === 'OR' ? 'text-amber-600' : 'text-blue-500'}`}>
+                        {nlOperator}
+                      </span>
+                    )}
+                    <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border ${
+                      nlOperator === 'OR' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-blue-100 text-blue-700 border-blue-200'
+                    }`}>
+                      <span>{c.carrera}</span>
+                      <span className={nlOperator === 'OR' ? 'text-amber-400' : 'text-blue-400'}>·</span>
+                      <span className="font-normal">{c.fase ?? 'cualquier fase'}</span>
+                    </span>
+                  </React.Fragment>
+                ))}
+              </>
+            ) : (
+              <span className="text-xs text-gray-400 italic">No se detectaron filtros en la búsqueda</span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Advanced Filter Bar */}

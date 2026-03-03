@@ -19,8 +19,8 @@ export function useRases() {
     if (data) setRases(data);
   };
 
-  const addRas = async (rasData: any): Promise<RAS | undefined> => {
-    const { data, error } = await supabase.from('rases').insert([rasData]).select();
+  const addRas = async (rasData: any, userId?: string): Promise<RAS | undefined> => {
+    const { data, error } = await supabase.from('rases').insert([{ ...rasData, owner: userId || null }]).select();
     if (error) {
       console.warn('No se pudo guardar la RAS.', error.message);
       return undefined;
