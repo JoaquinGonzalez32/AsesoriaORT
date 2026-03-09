@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { RAS, Oportunidad, ModalidadRAS } from '../types';
 import { PieChart, Pie, BarChart, Bar, XAxis, YAxis, Cell, ResponsiveContainer, Tooltip, LabelList } from 'recharts';
 import { exportChartsAsImage, exportChartsAsCSV, ChartData } from '../lib/exportChart';
@@ -20,6 +21,7 @@ const AGENTES_RAS = [
 const CARRERAS = ['LV', 'WY', 'LT', 'LD', 'YN', 'LG', 'VD', 'UI', 'GF', 'WE'];
 
 const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd, onUpdate, onDelete }) => {
+  const navigateToOpp = useNavigate();
   const [filter, setFilter] = useState('');
   const [tituloFilter, setTituloFilter] = useState('');
   const [agenteFilter, setAgenteFilter] = useState('');
@@ -469,6 +471,15 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
                   )}
                 </div>
                 <div className="pt-4 border-t border-gray-50 flex items-center justify-end gap-4">
+                  {ras.opp_id && (
+                    <button
+                      onClick={() => navigateToOpp(`/opportunities/${ras.opp_id}`)}
+                      className="text-gray-400 hover:text-purple-600 transition-colors flex items-center gap-1 font-bold text-[10px] uppercase tracking-widest"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                      Ver Opp
+                    </button>
+                  )}
                   <button
                     onClick={() => setRasToEdit(ras)}
                     className="text-gray-400 hover:text-blue-600 transition-colors flex items-center gap-1 font-bold text-[10px] uppercase tracking-widest"
@@ -526,6 +537,15 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
                   </td>
                   <td className="px-5 py-3 text-right">
                     <div className="flex items-center justify-end gap-3">
+                      {ras.opp_id && (
+                        <button
+                          onClick={() => navigateToOpp(`/opportunities/${ras.opp_id}`)}
+                          className="text-gray-400 hover:text-purple-600 transition-colors"
+                          title="Ver Oportunidad"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                        </button>
+                      )}
                       <button
                         onClick={() => setRasToEdit(ras)}
                         className="text-gray-400 hover:text-blue-600 transition-colors"

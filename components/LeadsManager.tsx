@@ -505,7 +505,7 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
                   const formData = new FormData(e.currentTarget);
                   const rasInfo = rasAgendada ? {
                     agente_nombre: formData.get('ras_agente_nombre'),
-                    fecha_hora: formData.get('ras_fecha_hora'),
+                    fecha_hora: formData.get('ras_fecha_hora') && formData.get('ras_hora') ? `${formData.get('ras_fecha_hora')}T${formData.get('ras_hora')}` : formData.get('ras_fecha_hora'),
                     modalidad: formData.get('ras_modalidad'),
                   } : null;
                   onConvert(showConvertModal, {
@@ -555,8 +555,9 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
                       {rasAgendada && (
                         <div className="space-y-3 pt-3 border-t border-gray-200">
                            <div><label className="text-[10px] font-black text-blue-500 uppercase block mb-1">¿Quien hace RAS?</label><select name="ras_agente_nombre" required className="w-full border-blue-100 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white font-bold"><option value="">Seleccionar...</option><option value="Natalia Benarducci">Natalia Benarducci</option><option value="Mariana Muzi">Mariana Muzi</option><option value="Bruno Arce">Bruno Arce</option><option value="Diego Miranda">Diego Miranda</option><option value="Alejandro Erramun">Alejandro Erramun</option><option value="Lucia Nazur">Lucia Nazur</option><option value="Fabian Barros">Fabian Barros</option><option value="Maria Podesta">Maria Podesta</option><option value="Fernanda Nuñez">Fernanda Nuñez</option><option value="Pablo Pirotto">Pablo Pirotto</option><option value="Daniel Dominguez">Daniel Dominguez</option></select></div>
-                           <div className="grid grid-cols-2 gap-2">
+                           <div className="grid grid-cols-3 gap-2">
                               <div><label className="text-[10px] font-black text-blue-500 uppercase block mb-1">Fecha</label><input name="ras_fecha_hora" type="date" required className="w-full border-blue-100 border rounded-lg px-2 py-2 text-xs" /></div>
+                              <div><label className="text-[10px] font-black text-blue-500 uppercase block mb-1">Hora</label><select name="ras_hora" className="w-full border-blue-100 border rounded-lg px-2 py-2 text-xs"><option value="">--:--</option>{Array.from({length: 48}, (_, i) => {const h = String(Math.floor(i/2)).padStart(2,'0'); const m = i%2===0?'00':'30'; return `${h}:${m}`;}).map(t => <option key={t} value={t}>{t}</option>)}</select></div>
                               <div><label className="text-[10px] font-black text-blue-500 uppercase block mb-1">Modalidad</label><select name="ras_modalidad" className="w-full border-blue-100 border rounded-lg px-2 py-2 text-xs">{Object.values(ModalidadRAS).map(m => <option key={m} value={m}>{m}</option>)}</select></div>
                            </div>
                         </div>

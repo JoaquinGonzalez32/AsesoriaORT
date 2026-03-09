@@ -7,7 +7,8 @@
       "Bash(grep:*)",
       "Bash(npm uninstall:*)",
       "Bash(npx tsx:*)",
-      "Bash(timeout 10 npx vite build:*)"
+      "Bash(timeout 10 npx vite build:*)",
+      "Bash(npx supabase:*)"
     ]
   }
 }
