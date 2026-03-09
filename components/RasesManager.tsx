@@ -1,15 +1,25 @@
 import React, { useMemo, useState, useRef } from 'react';
-import { RAS, ModalidadRAS } from '../types';
-import { PieChart, Pie, BarChart, Bar, XAxis, YAxis, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { RAS, Oportunidad, ModalidadRAS } from '../types';
+import { PieChart, Pie, BarChart, Bar, XAxis, YAxis, Cell, ResponsiveContainer, Tooltip, LabelList } from 'recharts';
 import { exportChartsAsImage, exportChartsAsCSV, ChartData } from '../lib/exportChart';
 
 interface RasesManagerProps {
   rases: RAS[];
+  opportunities: Oportunidad[];
   onAdd?: (ras: any) => void;
+  onUpdate: (id: string, data: any) => void;
   onDelete: (id: string) => void;
 }
 
-const RasesManager: React.FC<RasesManagerProps> = ({ rases, onAdd, onDelete }) => {
+const AGENTES_RAS = [
+  'Natalia Benarducci', 'Mariana Muzi', 'Bruno Arce', 'Diego Miranda',
+  'Alejandro Erramun', 'Lucia Nazur', 'Fabian Barros', 'Maria Podesta',
+  'Fernanda Nuñez', 'Pablo Pirotto', 'Daniel Dominguez'
+];
+
+const CARRERAS = ['LV', 'WY', 'LT', 'LD', 'YN', 'LG', 'VD', 'UI', 'GF', 'WE'];
+
+const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd, onUpdate, onDelete }) => {
   const [filter, setFilter] = useState('');
   const [tituloFilter, setTituloFilter] = useState('');
   const [agenteFilter, setAgenteFilter] = useState('');
@@ -18,8 +28,11 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, onAdd, onDelete }) =
   const [estadoFilter, setEstadoFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [monthFilter, setMonthFilter] = useState('');
+  const [monthFilter, setMonthFilter] = useState(String(new Date().getMonth() + 1).padStart(2, '0'));
   const [rasToDelete, setRasToDelete] = useState<RAS | null>(null);
+  const [rasToEdit, setRasToEdit] = useState<RAS | null>(null);
+  const [showCharts, setShowCharts] = useState(false);
+  const [viewMode, setViewMode] = useState<'cards' | 'list'>('list');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const MESES = [
@@ -28,6 +41,12 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, onAdd, onDelete }) =
     { val: '07', name: 'Julio' }, { val: '08', name: 'Agosto' }, { val: '09', name: 'Septiembre' },
     { val: '10', name: 'Octubre' }, { val: '11', name: 'Noviembre' }, { val: '12', name: 'Diciembre' }
   ];
+
+  const oppFaseMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    opportunities.forEach(o => { map[o.opp_id] = o.fase_oportunidad; });
+    return map;
+  }, [opportunities]);
 
   const filterOptions = useMemo(() => {
     const valid = rases.filter(r => !r.deleted_at);
@@ -64,8 +83,20 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, onAdd, onDelete }) =
     });
   }, [rases, filter, tituloFilter, agenteFilter, modalidadFilter, carreraFilter, estadoFilter, dateFrom, dateTo, monthFilter]);
 
+  const FASE_STYLE: Record<string, string> = {
+    'Interesado': 'bg-blue-100 text-blue-700',
+    'Evaluando': 'bg-blue-50 text-blue-500',
+    'Contactado': 'bg-amber-100 text-amber-700',
+    'No interesado': 'bg-red-100 text-red-700',
+    'Promesa de Inscripción': 'bg-green-100 text-green-700',
+    'Inscripto': 'bg-green-200 text-green-800',
+  };
   const AGENTE_COLORS = ['#2563eb', '#7c3aed', '#0891b2', '#059669', '#d97706', '#dc2626', '#4f46e5', '#0d9488', '#ca8a04', '#be185d', '#6d28d9'];
-  const CARRERA_COLORS = ['#9333ea', '#6366f1', '#8b5cf6', '#a855f7', '#7c3aed', '#c084fc', '#818cf8', '#a78bfa', '#d8b4fe', '#e9d5ff'];
+  const CARRERA_HEX: Record<string, string> = {
+    'LV': '#0ea5e9', 'WY': '#8b5cf6', 'LT': '#f43f5e', 'LD': '#14b8a6', 'YN': '#f97316',
+    'LG': '#6366f1', 'VD': '#ec4899', 'UI': '#06b6d4', 'GF': '#a855f7', 'WE': '#eab308',
+  };
+  const CARRERA_FALLBACK = ['#0ea5e9', '#8b5cf6', '#f43f5e', '#14b8a6', '#f97316', '#6366f1', '#ec4899', '#06b6d4', '#a855f7', '#eab308'];
 
   const stats = useMemo(() => {
     const total = activeRases.length;
@@ -134,6 +165,21 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, onAdd, onDelete }) =
     }
   };
 
+  const handleSaveEdit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!rasToEdit) return;
+    const fd = new FormData(e.currentTarget);
+    onUpdate(rasToEdit.ras_id, {
+      titulo: fd.get('titulo') as string,
+      nombre_interesado: fd.get('nombre_interesado') as string,
+      agente_nombre: fd.get('agente_nombre') as string,
+      fecha_hora: (fd.get('fecha_hora') as string) || rasToEdit.fecha_hora,
+      modalidad: fd.get('modalidad') as ModalidadRAS,
+      carrera: fd.get('carrera') as string,
+    });
+    setRasToEdit(null);
+  };
+
   return (
     <div className="space-y-6 animate-in slide-in-from-bottom-2 duration-300">
       {/* Header Actions */}
@@ -149,7 +195,7 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, onAdd, onDelete }) =
               const charts: ChartData[] = [
                 { title: 'Modalidad', data: stats.pieData.map(d => ({ name: d.name, value: d.value, color: d.color })), type: 'pie' },
                 { title: 'RAS por Agente', data: stats.agenteData.map((d, i) => ({ ...d, color: AGENTE_COLORS[i % AGENTE_COLORS.length] })), type: 'bar-horizontal' },
-                ...(stats.carreraData.length > 0 ? [{ title: 'RAS por Carrera', data: stats.carreraData.map((d, i) => ({ ...d, color: CARRERA_COLORS[i % CARRERA_COLORS.length] })), type: 'bar' as const }] : []),
+                ...(stats.carreraData.length > 0 ? [{ title: 'RAS por Carrera', data: stats.carreraData.map((d, i) => ({ ...d, color: CARRERA_HEX[d.name] || CARRERA_FALLBACK[i % CARRERA_FALLBACK.length] })), type: 'bar' as const }] : []),
               ];
               exportChartsAsImage(charts, 'rases_graficas');
             }}
@@ -182,6 +228,18 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, onAdd, onDelete }) =
       </div>
 
       {/* KPI Section */}
+      <button
+        type="button"
+        onClick={() => setShowCharts(!showCharts)}
+        className="w-full flex items-center justify-between bg-white px-5 py-3 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
+      >
+        <div className="flex items-center gap-2">
+          <span className="w-1.5 h-5 bg-blue-600 rounded-full"></span>
+          <span className="text-sm font-bold text-gray-900">Gráficas y KPIs</span>
+        </div>
+        <svg className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${showCharts ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      {showCharts && (<>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Citas Filtradas</p>
@@ -213,11 +271,11 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, onAdd, onDelete }) =
             <div className="space-y-1">
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-blue-600"></span>
-                <span className="text-[10px] font-bold text-gray-600">P: {stats.presencial}</span>
+                <span className="text-[10px] font-bold text-gray-600">Presencial: {stats.presencial}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-sky-400"></span>
-                <span className="text-[10px] font-bold text-gray-600">OL: {stats.online}</span>
+                <span className="text-[10px] font-bold text-gray-600">En línea: {stats.online}</span>
               </div>
             </div>
           </div>
@@ -239,6 +297,7 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, onAdd, onDelete }) =
                   {stats.agenteData.map((_, index) => (
                     <Cell key={`ag-${index}`} fill={AGENTE_COLORS[index % AGENTE_COLORS.length]} />
                   ))}
+                  <LabelList dataKey="value" position="right" style={{ fontSize: '10px', fontWeight: 800, fill: '#6b7280' }} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -247,7 +306,7 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, onAdd, onDelete }) =
             {stats.agenteData.map((d, i) => (
               <div key={i} className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full" style={{backgroundColor: AGENTE_COLORS[i % AGENTE_COLORS.length]}}></span>
-                <span className="text-[9px] font-black text-gray-400 uppercase">{d.name}: {d.value}</span>
+                <span className="text-[9px] font-black text-gray-400 uppercase">{d.name}</span>
               </div>
             ))}
           </div>
@@ -261,29 +320,23 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, onAdd, onDelete }) =
             <span className="w-1.5 h-4 bg-purple-600 rounded-full"></span>
             RAS por Carrera
           </h5>
-          <div className="h-[80px]">
+          <div className="h-[120px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stats.carreraData}>
+              <BarChart data={stats.carreraData} margin={{ top: 18, right: 5, left: 5, bottom: 0 }}>
+                <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 800, fill: '#6b7280' }} axisLine={false} tickLine={false} />
                 <Tooltip cursor={{fill: 'transparent'}} contentStyle={{fontSize: '10px', borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'}} />
-                <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={24} animationDuration={500}>
-                  {stats.carreraData.map((_, index) => (
-                    <Cell key={`cr-${index}`} fill={CARRERA_COLORS[index % CARRERA_COLORS.length]} />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]} animationDuration={500} maxBarSize={36}>
+                  {stats.carreraData.map((d, index) => (
+                    <Cell key={`cr-${index}`} fill={CARRERA_HEX[d.name] || CARRERA_FALLBACK[index % CARRERA_FALLBACK.length]} />
                   ))}
+                  <LabelList dataKey="value" position="top" style={{ fontSize: '11px', fontWeight: 800, fill: '#374151' }} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <div className="flex flex-wrap gap-3 mt-2">
-            {stats.carreraData.map((d, i) => (
-              <div key={i} className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full" style={{backgroundColor: CARRERA_COLORS[i % CARRERA_COLORS.length]}}></span>
-                <span className="text-[9px] font-black text-gray-400 uppercase">{d.name}: {d.value}</span>
-              </div>
-            ))}
-          </div>
         </div>
       )}
-
+      </>)}
 
       {/* Filter Bar */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
@@ -298,35 +351,35 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, onAdd, onDelete }) =
           </div>
           <div>
             <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">¿Quien hace RAS?</label>
-            <select value={agenteFilter} onChange={(e) => setAgenteFilter(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold text-blue-700 cursor-pointer">
+            <select value={agenteFilter} onChange={(e) => setAgenteFilter(e.target.value)} className={`bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold cursor-pointer ${agenteFilter ? 'text-blue-700' : 'text-gray-700'}`}>
               <option value="">Todos</option>
               {filterOptions.agentes.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
           <div>
             <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Modalidad</label>
-            <select value={modalidadFilter} onChange={(e) => setModalidadFilter(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold text-blue-700 cursor-pointer">
+            <select value={modalidadFilter} onChange={(e) => setModalidadFilter(e.target.value)} className={`bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold cursor-pointer ${modalidadFilter ? 'text-blue-700' : 'text-gray-700'}`}>
               <option value="">Todas</option>
               {Object.values(ModalidadRAS).map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           </div>
           <div>
             <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Carrera</label>
-            <select value={carreraFilter} onChange={(e) => setCarreraFilter(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold text-purple-700 cursor-pointer">
+            <select value={carreraFilter} onChange={(e) => setCarreraFilter(e.target.value)} className={`bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold cursor-pointer ${carreraFilter ? 'text-blue-700' : 'text-gray-700'}`}>
               <option value="">Todas</option>
               {filterOptions.carreras.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
           <div>
             <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Estado Oportunidad</label>
-            <select value={estadoFilter} onChange={(e) => setEstadoFilter(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold text-green-700 cursor-pointer">
+            <select value={estadoFilter} onChange={(e) => setEstadoFilter(e.target.value)} className={`bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold cursor-pointer ${estadoFilter ? 'text-blue-700' : 'text-gray-700'}`}>
               <option value="">Todos</option>
               {filterOptions.estados.map(e => <option key={e} value={e}>{e}</option>)}
             </select>
           </div>
           <div>
             <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Mes</label>
-            <select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold text-gray-700 cursor-pointer">
+            <select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} className={`bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold cursor-pointer ${monthFilter ? 'text-blue-700' : 'text-gray-700'}`}>
               <option value="">Todos</option>
               {MESES.map(m => <option key={m.val} value={m.val}>{m.name}</option>)}
             </select>
@@ -347,10 +400,35 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, onAdd, onDelete }) =
         </div>
       </div>
 
-      {/* Rases Grid */}
+      {/* View Toggle */}
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-gray-500 font-bold">{activeRases.length} reuniones</p>
+        <div className="flex items-center bg-gray-100 rounded-xl p-1">
+          <button
+            onClick={() => setViewMode('cards')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'cards' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            Cards
+          </button>
+          <button
+            onClick={() => setViewMode('list')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'list' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            Lista
+          </button>
+        </div>
+      </div>
+
+      {/* Rases Content */}
+      {activeRases.length === 0 ? (
+        <div className="py-24 bg-white rounded-3xl border border-dashed border-gray-200 text-center">
+          <p className="text-gray-400 font-medium">No hay reuniones agendadas que coincidan.</p>
+        </div>
+      ) : viewMode === 'cards' ? (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {activeRases.length > 0 ? (
-          activeRases.map((ras) => (
+        {activeRases.map((ras) => (
             <div key={ras.ras_id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow group flex flex-col">
               <div className="bg-blue-600 p-4 text-white">
                 <div className="flex justify-between items-start mb-2">
@@ -376,13 +454,28 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, onAdd, onDelete }) =
                     {ras.agente_nombre}
                   </p>
                 </div>
-                {ras.carrera && (
-                  <div>
-                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider">Carrera</span>
-                    <span className="ml-2 text-xs font-black text-purple-600">{ras.carrera}</span>
-                  </div>
-                )}
-                <div className="pt-4 border-t border-gray-50 flex items-center justify-end">
+                <div className="flex items-center gap-3 flex-wrap">
+                  {ras.carrera && (
+                    <div>
+                      <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider">Carrera</span>
+                      <span className="ml-2 text-xs font-black text-purple-600">{ras.carrera}</span>
+                    </div>
+                  )}
+                  {oppFaseMap[ras.opp_id] && (
+                    <div>
+                      <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider">Fase</span>
+                      <span className={`ml-2 px-2 py-0.5 rounded text-[10px] font-black ${FASE_STYLE[oppFaseMap[ras.opp_id]] || 'bg-gray-100 text-gray-600'}`}>{oppFaseMap[ras.opp_id]}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="pt-4 border-t border-gray-50 flex items-center justify-end gap-4">
+                  <button
+                    onClick={() => setRasToEdit(ras)}
+                    className="text-gray-400 hover:text-blue-600 transition-colors flex items-center gap-1 font-bold text-[10px] uppercase tracking-widest"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Editar
+                  </button>
                   <button
                     onClick={() => setRasToDelete(ras)}
                     className="text-gray-400 hover:text-red-500 transition-colors flex items-center gap-1 font-bold text-[10px] uppercase tracking-widest"
@@ -393,13 +486,127 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, onAdd, onDelete }) =
                 </div>
               </div>
             </div>
-          ))
-        ) : (
-          <div className="col-span-full py-24 bg-white rounded-3xl border border-dashed border-gray-200 text-center">
-            <p className="text-gray-400 font-medium">No hay reuniones agendadas que coincidan.</p>
-          </div>
-        )}
+          ))}
       </div>
+      ) : (
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100">
+                <th className="text-left px-5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Fecha</th>
+                <th className="text-left px-5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Título</th>
+                <th className="text-left px-5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Interesado</th>
+                <th className="text-left px-5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Agente</th>
+                <th className="text-left px-5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Modalidad</th>
+                <th className="text-left px-5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Carrera</th>
+                <th className="text-left px-5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Fase</th>
+                <th className="text-right px-5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {activeRases.map((ras) => (
+                <tr key={ras.ras_id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                  <td className="px-5 py-3 text-xs font-bold text-gray-600 whitespace-nowrap">{new Date(ras.fecha_hora).toLocaleDateString('es-ES')}</td>
+                  <td className="px-5 py-3 text-xs font-bold text-gray-900 max-w-[200px] truncate">{ras.titulo}</td>
+                  <td className="px-5 py-3 text-xs font-bold text-gray-800">{ras.nombre_interesado}</td>
+                  <td className="px-5 py-3 text-xs font-bold text-gray-800">{ras.agente_nombre}</td>
+                  <td className="px-5 py-3">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                      ras.modalidad === ModalidadRAS.Presencial ? 'bg-blue-100 text-blue-700' : 'bg-sky-100 text-sky-700'
+                    }`}>
+                      {ras.modalidad}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3 text-xs font-black text-purple-600">{ras.carrera || '—'}</td>
+                  <td className="px-5 py-3">
+                    {oppFaseMap[ras.opp_id] ? (
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-black ${FASE_STYLE[oppFaseMap[ras.opp_id]] || 'bg-gray-100 text-gray-600'}`}>{oppFaseMap[ras.opp_id]}</span>
+                    ) : '—'}
+                  </td>
+                  <td className="px-5 py-3 text-right">
+                    <div className="flex items-center justify-end gap-3">
+                      <button
+                        onClick={() => setRasToEdit(ras)}
+                        className="text-gray-400 hover:text-blue-600 transition-colors"
+                        title="Editar"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      </button>
+                      <button
+                        onClick={() => setRasToDelete(ras)}
+                        className="text-gray-400 hover:text-red-500 transition-colors"
+                        title="Eliminar"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      )}
+
+      {/* Edit Modal */}
+      {rasToEdit && (
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md flex items-center justify-center z-[70] p-4 animate-in fade-in duration-300">
+          <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+            <form onSubmit={handleSaveEdit}>
+              <div className="p-8">
+                <h3 className="text-xl font-bold text-gray-900 mb-6 tracking-tight">Editar Reunión</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Título</label>
+                    <input name="titulo" defaultValue={rasToEdit.titulo} required className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full focus:ring-2 focus:ring-blue-500 outline-none font-bold" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Interesado</label>
+                      <input name="nombre_interesado" defaultValue={rasToEdit.nombre_interesado} required className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full focus:ring-2 focus:ring-blue-500 outline-none font-bold" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">¿Quien hace RAS?</label>
+                      <select name="agente_nombre" defaultValue={rasToEdit.agente_nombre} required className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold cursor-pointer">
+                        {AGENTES_RAS.map(a => <option key={a} value={a}>{a}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Fecha</label>
+                      <input name="fecha_hora" type="date" defaultValue={rasToEdit.fecha_hora.split('T')[0]} className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm w-full" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Modalidad</label>
+                      <select name="modalidad" defaultValue={rasToEdit.modalidad} className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold cursor-pointer">
+                        {Object.values(ModalidadRAS).map(m => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Carrera</label>
+                      <select name="carrera" defaultValue={rasToEdit.carrera} className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold cursor-pointer">
+                        <option value="">Sin carrera</option>
+                        {CARRERAS.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-gray-50/80 px-8 py-6 flex flex-col sm:flex-row gap-3">
+                <button type="button" onClick={() => setRasToEdit(null)} className="flex-1 px-6 py-3 text-sm font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-200/50 rounded-2xl transition-all">
+                  Cancelar
+                </button>
+                <button type="submit" className="flex-1 px-8 py-3 bg-blue-600 text-white text-sm font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-blue-200 hover:bg-blue-700 hover:shadow-xl hover:-translate-y-0.5 active:scale-95 transition-all">
+                  Guardar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Styled Deletion Modal */}
       {rasToDelete && (

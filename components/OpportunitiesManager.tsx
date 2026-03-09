@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Oportunidad, FaseOportunidad, LiceoTipo, ModalidadRAS } from '../types';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { exportChartsAsImage, exportChartsAsCSV, ChartData } from '../lib/exportChart';
 import { parseNLQuery, SmartCondition, NLOperator } from '../lib/nlParser';
 
@@ -25,7 +25,14 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
   const [filter, setFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [procesoFilter, setProcesoFilter] = useState('');
+  const [procesoFilter, setProcesoFilter] = useState(() => {
+    const now = new Date();
+    const m = now.getMonth() + 1;
+    const y = now.getFullYear();
+    if (m >= 9) return `Marzo ${y + 1}`;
+    if (m >= 4) return `Agosto ${y}`;
+    return `Marzo ${y}`;
+  });
   const [faseFilter, setFaseFilter] = useState('');
   const [rasAgendadaFilter, setRasAgendadaFilter] = useState('');
   const [rasAsistioFilter, setRasAsistioFilter] = useState('');
@@ -45,6 +52,8 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
   const [mainCarrera, setMainCarrera] = useState('');
   const [expandedContacts, setExpandedContacts] = useState<string[]>([]);
   const [showCareerDropdown, setShowCareerDropdown] = useState(false);
+  const [showCharts, setShowCharts] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(true);
   const careerDropdownRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -68,6 +77,21 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
   }, [showCareerDropdown]);
 
   const CARRERAS_OPTIONS = ['LV', 'WY', 'LT', 'LD', 'YN', 'LG', 'VD', 'UI', 'GF', 'WE'];
+
+  const FASE_HEX: Record<string, string> = {
+    [FaseOportunidad.Interesado]: '#3b82f6',
+    [FaseOportunidad.Evaluando]: '#60a5fa',
+    [FaseOportunidad.Contactado]: '#f59e0b',
+    [FaseOportunidad.NoInteresado]: '#ef4444',
+    [FaseOportunidad.PromesaInscripcion]: '#22c55e',
+    [FaseOportunidad.Inscripto]: '#16a34a',
+  };
+
+  const CARRERA_HEX: Record<string, string> = {
+    'LV': '#0ea5e9', 'WY': '#8b5cf6', 'LT': '#f43f5e', 'LD': '#14b8a6',
+    'YN': '#f97316', 'LG': '#6366f1', 'VD': '#ec4899', 'UI': '#06b6d4',
+    'GF': '#a855f7', 'WE': '#eab308',
+  };
 
   const PROCESO_OPTIONS = (() => {
     const options: string[] = [];
@@ -419,7 +443,20 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
   return (
     <><div className="space-y-6 animate-in slide-in-from-bottom-2 duration-300">
       {/* KPI Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4">
+      <button
+        type="button"
+        onClick={() => setShowCharts(!showCharts)}
+        className="w-full flex items-center justify-between bg-white px-5 py-3 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
+      >
+        <div className="flex items-center gap-2">
+          <span className="w-1.5 h-5 bg-blue-600 rounded-full"></span>
+          <span className="text-sm font-bold text-gray-900">Gráficas y KPIs</span>
+        </div>
+        <svg className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${showCharts ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      {showCharts && (<>
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Opps Filtradas</p>
           <h4 className="text-3xl font-black text-gray-900">{stats.total}</h4>
@@ -431,38 +468,75 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
         <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Inscriptos</p>
           <h4 className="text-3xl font-black text-green-600">{stats.inscriptos}</h4>
+          <div className="w-full bg-gray-100 rounded-full h-2 mt-3 overflow-hidden">
+            <div className="bg-green-500 h-2 rounded-full transition-all duration-500" style={{ width: `${stats.total > 0 ? Math.round((stats.inscriptos / stats.total) * 100) : 0}%` }} />
+          </div>
+          <p className="text-xs text-gray-500 font-medium mt-2">{stats.total > 0 ? Math.round((stats.inscriptos / stats.total) * 100) : 0}% del total filtrado</p>
         </div>
-        <div className="md:col-span-2 bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Pipeline Actual</p>
-          <div className="h-[80px]">
+      </div>
+
+      {/* Charts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+          <h5 className="text-xs font-black text-gray-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+            <span className="w-1.5 h-4 bg-blue-600 rounded-full"></span>
+            Pipeline Actual
+          </h5>
+          <div className="h-[180px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={stats.pipelineData}>
+                <XAxis dataKey="name" tick={{ fontSize: 9, fontWeight: 700, fill: '#9ca3af' }} interval={0} angle={-25} textAnchor="end" height={50} />
+                <YAxis hide />
                 <Tooltip cursor={{fill: 'transparent'}} contentStyle={{fontSize: '10px', borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'}} />
-                <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={20} animationDuration={500}>
-                  {stats.pipelineData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={'#2563eb'} />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={28} animationDuration={500}>
+                  {stats.pipelineData.map((entry) => (
+                    <Cell key={entry.name} fill={FASE_HEX[entry.name] || '#2563eb'} />
                   ))}
+                  <LabelList dataKey="value" position="top" style={{ fontSize: '11px', fontWeight: 800, fill: '#374151' }} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
+          <div className="flex flex-wrap gap-3 mt-2">
+            {stats.pipelineData.map((d) => (
+              <div key={d.name} className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full" style={{backgroundColor: FASE_HEX[d.name] || '#2563eb'}}></span>
+                <span className="text-[9px] font-black text-gray-400 uppercase">{d.name}</span>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="md:col-span-2 bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Mix de Carreras</p>
-          <div className="h-[80px]">
+        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+          <h5 className="text-xs font-black text-gray-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+            <span className="w-1.5 h-4 bg-purple-600 rounded-full"></span>
+            Mix de Carreras
+          </h5>
+          <div className="h-[180px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={stats.careerData}>
+                <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 800, fill: '#9ca3af' }} interval={0} />
+                <YAxis hide />
                 <Tooltip cursor={{fill: 'transparent'}} contentStyle={{fontSize: '10px', borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'}} />
-                <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={20} animationDuration={500}>
-                  {stats.careerData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={'#9333ea'} />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={28} animationDuration={500}>
+                  {stats.careerData.map((entry) => (
+                    <Cell key={entry.name} fill={CARRERA_HEX[entry.name] || '#6366f1'} />
                   ))}
+                  <LabelList dataKey="value" position="top" style={{ fontSize: '11px', fontWeight: 800, fill: '#374151' }} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+          </div>
+          <div className="flex flex-wrap gap-3 mt-2">
+            {stats.careerData.map((d) => (
+              <div key={d.name} className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full" style={{backgroundColor: CARRERA_HEX[d.name] || '#6366f1'}}></span>
+                <span className="text-[9px] font-black text-gray-400 uppercase">{d.name}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
+      </>)}
 
       {/* Header Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -559,89 +633,108 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
       </div>
 
       {/* Advanced Filter Bar */}
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-5">
-          <div>
-            <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Nombre / CI / Mail</label>
-            <input type="text" placeholder="Buscar..." value={filter} onChange={(e) => setFilter(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+          className="w-full flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <svg className="w-4 h-4 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+            <span className="text-sm font-bold text-gray-900">Filtros avanzados</span>
           </div>
-          <div>
-            <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Fase</label>
-            <select value={faseFilter} onChange={(e) => setFaseFilter(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold text-blue-700 cursor-pointer">
-              <option value="">Todas</option>
-              {Object.values(FaseOportunidad).map(f => <option key={f} value={f}>{f}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Proceso Inicio</label>
-            <select value={procesoFilter} onChange={(e) => setProcesoFilter(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold text-gray-700 cursor-pointer">
-              <option value="">Todos</option>
-              {PROCESO_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </div>
-          <div className="relative" ref={careerDropdownRef}>
-            <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Carreras</label>
-            <button
-              type="button"
-              onClick={() => setShowCareerDropdown(prev => !prev)}
-              className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold text-purple-700 cursor-pointer text-left flex items-center justify-between gap-2"
-            >
-              <span className="truncate">
-                {careerFilter.length === 0 ? 'Todas' : careerFilter.join(', ')}
-              </span>
-              <svg className={`w-4 h-4 shrink-0 text-gray-400 transition-transform ${showCareerDropdown ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
-            </button>
-            {showCareerDropdown && (
-              <div className="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg py-1 max-h-60 overflow-y-auto">
-                {CARRERAS_OPTIONS.map(c => {
-                  const isSelected = careerFilter.includes(c);
-                  return (
-                    <label
-                      key={c}
-                      className={`flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-purple-50 transition-colors ${isSelected ? 'bg-purple-50' : ''}`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => setCareerFilter(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])}
-                        className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                      />
-                      <span className={`text-sm font-bold ${isSelected ? 'text-purple-700' : 'text-gray-700'}`}>{c}</span>
-                    </label>
-                  );
-                })}
-                {careerFilter.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setCareerFilter([])}
-                    className="w-full text-center text-[10px] font-black uppercase text-red-500 hover:bg-red-50 py-2 border-t border-gray-100 transition-colors"
-                  >
-                    Limpiar selección
-                  </button>
+          <svg className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${showAdvancedFilters ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        {showAdvancedFilters && (
+          <div className="px-6 pb-6 space-y-4 border-t border-gray-100 pt-4">
+            {/* Fila 1: filtros principales */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+              <div>
+                <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Nombre / CI / Mail</label>
+                <input type="text" placeholder="Buscar..." value={filter} onChange={(e) => setFilter(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Fase</label>
+                <select value={faseFilter} onChange={(e) => setFaseFilter(e.target.value)} className={`bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold cursor-pointer ${faseFilter ? 'text-blue-700' : 'text-gray-700'}`}>
+                  <option value="">Todas</option>
+                  {Object.values(FaseOportunidad).map(f => <option key={f} value={f}>{f}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Proceso Inicio</label>
+                <select value={procesoFilter} onChange={(e) => setProcesoFilter(e.target.value)} className={`bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold cursor-pointer ${procesoFilter ? 'text-blue-700' : 'text-gray-700'}`}>
+                  <option value="">Todos</option>
+                  {PROCESO_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+              <div className="relative" ref={careerDropdownRef}>
+                <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Carreras</label>
+                <button
+                  type="button"
+                  onClick={() => setShowCareerDropdown(prev => !prev)}
+                  className={`bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold cursor-pointer text-left flex items-center justify-between gap-2 ${careerFilter.length > 0 ? 'text-blue-700' : 'text-gray-700'}`}
+                >
+                  <span className="truncate">
+                    {careerFilter.length === 0 ? 'Todas' : careerFilter.join(', ')}
+                  </span>
+                  <svg className={`w-4 h-4 shrink-0 text-gray-400 transition-transform ${showCareerDropdown ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                {showCareerDropdown && (
+                  <div className="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg py-1 max-h-60 overflow-y-auto">
+                    {CARRERAS_OPTIONS.map(c => {
+                      const isSelected = careerFilter.includes(c);
+                      return (
+                        <label
+                          key={c}
+                          className={`flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-purple-50 transition-colors ${isSelected ? 'bg-purple-50' : ''}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => setCareerFilter(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])}
+                            className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                          />
+                          <span className={`text-sm font-bold ${isSelected ? 'text-purple-700' : 'text-gray-700'}`}>{c}</span>
+                        </label>
+                      );
+                    })}
+                    {careerFilter.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setCareerFilter([])}
+                        className="w-full text-center text-[10px] font-black uppercase text-red-500 hover:bg-red-50 py-2 border-t border-gray-100 transition-colors"
+                      >
+                        Limpiar selección
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
+            </div>
+            {/* Fila 2: filtros secundarios */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+              <div>
+                <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Realiza RAS</label>
+                <select value={rasAsistioFilter} onChange={(e) => setRasAsistioFilter(e.target.value)} className={`bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold cursor-pointer ${rasAsistioFilter ? 'text-blue-700' : 'text-gray-700'}`}>
+                  <option value="">Todos</option>
+                  <option value="true">SÍ (Realizada)</option>
+                  <option value="false">NO (Pendiente)</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Desde</label>
+                <input type="date" lang="es" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Hasta</label>
+                <input type="date" lang="es" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full" />
+              </div>
+              <div className="flex items-end">
+                <button onClick={resetAllFilters} className="w-full bg-gray-900 text-white text-[10px] font-black uppercase py-3 rounded-xl hover:bg-black transition-all shadow-md active:scale-95">Limpiar filtros</button>
+              </div>
+            </div>
           </div>
-          <div>
-            <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Realiza RAS</label>
-            <select value={rasAsistioFilter} onChange={(e) => setRasAsistioFilter(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold text-green-700 cursor-pointer">
-              <option value="">Todos</option>
-              <option value="true">SÍ (Realizada)</option>
-              <option value="false">NO (Pendiente)</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Desde</label>
-            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm w-full" />
-          </div>
-          <div>
-            <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Hasta</label>
-            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm w-full" />
-          </div>
-          <div className="flex items-end">
-            <button onClick={resetAllFilters} className="w-full bg-gray-900 text-white text-[10px] font-black uppercase py-3 rounded-xl hover:bg-black transition-all shadow-md active:scale-95">Limpiar</button>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Contactos agrupados por SAPE */}

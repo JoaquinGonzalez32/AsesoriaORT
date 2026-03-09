@@ -16,12 +16,12 @@ Fila superior con metricas y graficos:
 |------------------|-----------------------------------------------------------|
 | Citas Filtradas  | Cantidad de reuniones que coinciden con los filtros, junto al total |
 | Top Agente       | Nombre del agente con mas reuniones y su cantidad          |
-| Modalidad (torta)| Grafico circular: Presencial vs. En Linea                  |
-| RAS por Agente   | Grafico de barras horizontales con cantidad por agente      |
+| Modalidad (torta)| Grafico circular: Presencial vs. En linea. Leyenda con nombres completos |
+| RAS por Agente   | Grafico de barras horizontales con valor numerico al final de cada barra. Leyenda simplificada (solo color y nombre, sin numeros). Barras ordenadas de mayor a menor |
 
 ### Grafico RAS por Carrera
 
-Debajo de los KPIs (se muestra solo si hay datos). Barras verticales mostrando la distribucion de reuniones por carrera.
+Debajo de los KPIs (se muestra solo si hay datos). Barras verticales con nombre de carrera en el eje X y valor numerico sobre cada barra. Usa la misma paleta de colores por carrera que la pagina de Oportunidades (colores diferenciados por carrera).
 
 ### Tarjetas de reuniones
 
@@ -50,7 +50,7 @@ Las tarjetas se organizan en una grilla responsiva (1 columna en movil, 2 en tab
 | Hasta               | Fecha         | Fecha maxima                                             |
 | Limpiar             | Boton         | Resetea todos los filtros (aparece solo cuando hay alguno activo) |
 
-Todos los filtros se aplican de forma combinada (AND). Los selectores de agente, carrera y estado se generan dinamicamente a partir de los datos existentes.
+Todos los filtros se aplican de forma combinada (AND). Los selectores de agente, carrera y estado se generan dinamicamente a partir de los datos existentes. Los selectores usan estilo neutro (gris) por defecto y se resaltan en azul cuando tienen un filtro activo.
 
 ---
 

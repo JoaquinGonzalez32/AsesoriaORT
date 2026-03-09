@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Lead, ResultadoLlamada, HorarioLlamada, ModalidadRAS, FaseOportunidad, LiceoTipo } from '../types';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { exportChartsAsImage, exportChartsAsCSV, ChartData } from '../lib/exportChart';
 
 interface LeadsManagerProps {
@@ -14,7 +14,7 @@ interface LeadsManagerProps {
 const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onDelete, onConvert }) => {
   const [filter, setFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
-  const [monthFilter, setMonthFilter] = useState<string>('');
+  const [monthFilter, setMonthFilter] = useState<string>(String(new Date().getMonth() + 1).padStart(2, '0'));
   const [showModal, setShowModal] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [leadToDelete, setLeadToDelete] = useState<Lead | null>(null);
@@ -23,6 +23,8 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [rasAgendada, setRasAgendada] = useState(false);
+  const [showCharts, setShowCharts] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   useEffect(() => {
     const hasModal = showModal || !!leadToDelete || !!showConvertModal;
@@ -44,12 +46,12 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
   };
 
   const RESULTADO_HEX: Record<string, string> = {
-    [ResultadoLlamada.PrimerContacto]: '#1d4ed8',
-    [ResultadoLlamada.Contactado]: '#15803d',
-    [ResultadoLlamada.Interesado]: '#047857',
-    [ResultadoLlamada.NoInteresado]: '#b91c1c',
-    [ResultadoLlamada.NumeroIncorrecto]: '#4b5563',
-    [ResultadoLlamada.LlamarMasTarde]: '#b45309',
+    [ResultadoLlamada.PrimerContacto]: '#3b82f6',
+    [ResultadoLlamada.Contactado]: '#22c55e',
+    [ResultadoLlamada.Interesado]: '#16a34a',
+    [ResultadoLlamada.NoInteresado]: '#ef4444',
+    [ResultadoLlamada.NumeroIncorrecto]: '#f97316',
+    [ResultadoLlamada.LlamarMasTarde]: '#60a5fa',
   };
 
   const CARRERAS_OPTIONS = ['LV', 'WY', 'LT', 'LD', 'YN', 'LG', 'VD', 'UI', 'GF', 'WE'];
@@ -83,13 +85,13 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
       activeLeads.forEach(l => {
         careerMap[l.carrera_interes] = (careerMap[l.carrera_interes] || 0) + 1;
       });
-      chartData = Object.entries(careerMap).map(([name, value]) => ({ name, value }));
+      chartData = Object.entries(careerMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
     } else {
       chartTitle = "Distribución por Resultado de Llamada";
       chartData = Object.values(ResultadoLlamada).map(res => ({
         name: res,
         value: activeLeads.filter(l => l.resultado_llamada === res).length
-      }));
+      })).sort((a, b) => b.value - a.value);
     }
 
     return { total, contactados, chartData, chartTitle };
@@ -150,6 +152,7 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
           carrera_interes: formData.get('carrera_interes') as string,
           resultado_llamada: formData.get('resultado_llamada') as ResultadoLlamada,
           horario_llamada: (formData.get('horario_llamada') as HorarioLlamada) || null,
+          intentos_llamado: parseInt(formData.get('intentos_llamado') as string) || 1,
           comentario: formData.get('comentario') as string,
           updated_at: new Date().toISOString(),
         };
@@ -182,6 +185,18 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
 
   return (
     <><div className="space-y-6 animate-in slide-in-from-bottom-2 duration-300">
+      <button
+        type="button"
+        onClick={() => setShowCharts(!showCharts)}
+        className="w-full flex items-center justify-between bg-white px-5 py-3 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
+      >
+        <div className="flex items-center gap-2">
+          <span className="w-1.5 h-5 bg-blue-600 rounded-full"></span>
+          <span className="text-sm font-bold text-gray-900">Gráficas y KPIs</span>
+        </div>
+        <svg className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${showCharts ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      {showCharts && (
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         <div className="lg:col-span-1 grid grid-cols-1 gap-4">
           <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
@@ -192,7 +207,13 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
           <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Efectividad del Filtro</p>
             <h4 className="text-3xl font-black text-green-600">{Math.round((stats.contactados / stats.total) * 100 || 0)}%</h4>
-            <p className="text-xs text-gray-500 font-medium mt-1">Tasa de contacto actual</p>
+            <div className="w-full bg-gray-100 rounded-full h-2 mt-3 overflow-hidden">
+              <div
+                className="bg-green-500 h-2 rounded-full transition-all duration-500"
+                style={{ width: `${Math.round((stats.contactados / stats.total) * 100 || 0)}%` }}
+              />
+            </div>
+            <p className="text-xs text-gray-500 font-medium mt-2">{stats.contactados} de {stats.total} contactados</p>
           </div>
         </div>
         <div className="lg:col-span-3 bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
@@ -210,6 +231,7 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
                   {stats.chartData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={RESULTADO_HEX[entry.name] || (index % 2 === 0 ? '#2563eb' : '#93c5fd')} />
                   ))}
+                  <LabelList dataKey="value" position="right" style={{ fontSize: '10px', fontWeight: 800, fill: '#6b7280' }} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -218,12 +240,13 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
             {stats.chartData.map((d, i) => (
               <div key={i} className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full" style={{backgroundColor: RESULTADO_HEX[d.name] || (i % 2 === 0 ? '#2563eb' : '#93c5fd')}}></span>
-                <span className="text-[9px] font-black text-gray-400 uppercase">{d.name}: {d.value}</span>
+                <span className="text-[9px] font-black text-gray-400 uppercase">{d.name}</span>
               </div>
             ))}
           </div>
         </div>
       </div>
+      )}
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
@@ -295,6 +318,7 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
               <th className="p-4">Nombre</th>
               <th className="p-4">Carrera</th>
               <th className="p-4">Resultado</th>
+              <th className="p-4 text-center">Intentos</th>
               <th className="p-4">Comentario</th>
               <th className="p-4 text-right">Acciones</th>
             </tr>
@@ -311,17 +335,14 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
                       {l.resultado_llamada}
                     </span>
                   </td>
+                  <td className="p-4 text-center">
+                    <span className="text-sm font-bold text-gray-700">{l.intentos_llamado}</span>
+                  </td>
                   <td className="p-4 text-gray-500 text-xs max-w-[200px] truncate">
                     {l.comentario || '—'}
                   </td>
                   <td className="p-4 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <button onClick={() => openEditModal(l)} className="text-blue-600 hover:text-blue-800 font-bold text-[10px] uppercase tracking-widest transition-colors">
-                        Editar
-                      </button>
-                      <button onClick={() => setLeadToDelete(l)} className="text-red-500 hover:text-red-700 font-bold text-[10px] uppercase tracking-widest transition-colors">
-                        Eliminar
-                      </button>
                       {l.convertido ? (
                         <span className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tighter">
                           Convertido
@@ -331,13 +352,42 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
                           Convertir
                         </button>
                       )}
+                      <div className="relative">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === l.lead_id ? null : l.lead_id); }}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+                        </button>
+                        {openMenuId === l.lead_id && (
+                          <>
+                            <div className="fixed inset-0 z-40" onClick={() => setOpenMenuId(null)} />
+                            <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-36 animate-in zoom-in-95 duration-150">
+                              <button
+                                onClick={() => { openEditModal(l); setOpenMenuId(null); }}
+                                className="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                Editar
+                              </button>
+                              <button
+                                onClick={() => { setLeadToDelete(l); setOpenMenuId(null); }}
+                                className="w-full text-left px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                                Eliminar
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={6} className="p-12 text-center text-gray-400 font-medium italic">
+                <td colSpan={7} className="p-12 text-center text-gray-400 font-medium italic">
                   No se encontraron leads con estos criterios.
                 </td>
               </tr>
@@ -375,6 +425,10 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
                         <select name="resultado_llamada" defaultValue={editingLead?.resultado_llamada} className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm font-bold text-sky-700 bg-sky-50 focus:ring-2 focus:ring-blue-500 outline-none">
                           {Object.values(ResultadoLlamada).map(r => <option key={r} value={r}>{r}</option>)}
                         </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Intentos de Llamado</label>
+                        <input name="intentos_llamado" type="number" min="0" defaultValue={editingLead?.intentos_llamado ?? 1} className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none" />
                       </div>
                       <div>
                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Horario Llamada</label>

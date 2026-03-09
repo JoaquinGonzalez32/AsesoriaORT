@@ -131,3 +131,35 @@ Boton **"Imagen"**. Descarga las graficas visibles como archivo de imagen.
 ### Exportar datos como CSV
 
 Boton **"CSV"**. Descarga los datos de las graficas en formato CSV.
+
+---
+
+## Estructura de datos de un Lead
+
+### Campos visibles en la tabla
+
+| Campo               | Descripcion                                                        |
+|---------------------|--------------------------------------------------------------------|
+| `fecha_lead`        | Fecha de ingreso del lead                                          |
+| `nombre`            | Nombre completo del prospecto                                      |
+| `carrera_interes`   | Carrera de interes (codigo abreviado)                              |
+| `resultado_llamada` | Estado del seguimiento (1er Contacto, Contactado, etc.)            |
+| `comentario`        | Notas u observaciones (se muestra truncado en la tabla)            |
+| `convertido`        | Se muestra como badge "Convertido" o como boton "Convertir"       |
+
+### Campos visibles solo en el formulario de edicion/creacion
+
+| Campo              | Descripcion                                            |
+|--------------------|--------------------------------------------------------|
+| `horario_llamada`  | Horario preferido de llamada (Manana, Tarde o Noche)   |
+
+### Campos no visibles en la interfaz
+
+| Campo              | Descripcion                                                              |
+|--------------------|--------------------------------------------------------------------------|
+| `lead_id`          | Identificador unico (UUID generado automaticamente por Supabase)         |
+| `intentos_llamado` | Contador de intentos de llamada (se inicializa en 1, no se muestra ni se edita) |
+| `owner`            | ID del usuario que creo el lead (se asigna automaticamente al crear)     |
+| `created_at`       | Fecha y hora de creacion del registro                                    |
+| `updated_at`       | Fecha y hora de la ultima modificacion                                   |
+| `deleted_at`       | Fecha y hora de borrado logico (soft delete, no se elimina fisicamente)  |

@@ -101,7 +101,7 @@ const App: React.FC = () => {
         <Route path={ROUTES.DASHBOARD} element={<Dashboard leads={leads} opportunities={opportunities} rases={rases} />} />
         <Route path={ROUTES.LEADS} element={<LeadsManager leads={leads} onAdd={handleAddLead} onUpdate={updateLead} onDelete={deleteLead} onConvert={convertToOpportunity} />} />
         <Route path={ROUTES.OPPORTUNITIES} element={<OpportunitiesManager opportunities={opportunities} onAdd={handleAddOpp} onUpdate={updateOpp} onDelete={deleteOpp} />} />
-        <Route path={ROUTES.RASES} element={<RasesManager rases={rases} onAdd={handleAddRas} onDelete={deleteRas} />} />
+        <Route path={ROUTES.RASES} element={<RasesManager rases={rases} opportunities={opportunities} onAdd={handleAddRas} onUpdate={updateRas} onDelete={deleteRas} />} />
         <Route path="*" element={<Dashboard leads={leads} opportunities={opportunities} rases={rases} />} />
       </Routes>
     );
