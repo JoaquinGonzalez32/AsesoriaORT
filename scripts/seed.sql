@@ -1,5 +1,5 @@
 -- ============================================================
--- SCRIPT DE CARGA MASIVA - CRM Admisiones ORT
+-- SCRIPT DE CARGA MASIVA - CRM Asesoría ORT
 -- Ejecutar en Supabase SQL Editor
 -- ============================================================
 

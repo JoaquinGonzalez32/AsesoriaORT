@@ -1,7 +1,7 @@
 
-# CRM Admisiones Pro
+# CRM Asesoría Pro
 
-Este es un sistema robusto diseñado para equipos de admisiones y ventas universitarias/escolares, optimizado para la gestión de leads y su conversión a oportunidades de matriculación.
+Este es un sistema robusto diseñado para equipos de asesoría y ventas universitarias/escolares, optimizado para la gestión de leads y su conversión a oportunidades de matriculación.
 
 ## Arquitectura
 - **Frontend**: React 18 con TypeScript y Tailwind CSS para una interfaz moderna y rápida.

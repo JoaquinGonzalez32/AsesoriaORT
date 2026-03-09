@@ -371,7 +371,7 @@ async function seedRases() {
 
 async function main() {
   console.log('═══════════════════════════════════════════');
-  console.log('   SEED - CRM Admisiones ORT');
+  console.log('   SEED - CRM Asesoría ORT');
   console.log('═══════════════════════════════════════════\n');
 
   const start = Date.now();

@@ -1,0 +1,133 @@
+# Manual de Usuario: Gestión de Leads
+
+## Descripcion general
+
+Pagina para administrar los prospectos (leads) entrantes al sistema. Es la primera etapa del embudo comercial: aqui se registran las personas que mostraron interes inicial y se realiza el seguimiento de llamadas.
+
+---
+
+## Contenido de la pagina
+
+### Panel de KPIs
+
+En la parte superior se muestran tarjetas con metricas clave:
+
+- **Prospectos Filtrados**: cantidad de leads que coinciden con los filtros activos, junto con el total general.
+- **Efectividad del Filtro**: porcentaje de leads contactados o interesados sobre el total filtrado (tasa de contacto).
+
+### Grafico de barras
+
+Grafico horizontal ubicado junto a los KPIs. Su comportamiento cambia segun los filtros:
+
+- **Sin filtro de estado**: muestra la distribucion por resultado de llamada (cuantos leads hay en cada estado).
+- **Con filtro de estado activo**: muestra la distribucion por carrera dentro de ese estado seleccionado.
+
+### Tabla de leads
+
+Tabla principal con las columnas:
+
+| Columna     | Descripcion                                  |
+|-------------|----------------------------------------------|
+| Fecha       | Fecha de ingreso del lead                    |
+| Nombre      | Nombre completo del prospecto                |
+| Carrera     | Carrera de interes (codigo abreviado)        |
+| Resultado   | Estado actual del seguimiento telefonico     |
+| Comentario  | Notas u observaciones (texto truncado)       |
+| Acciones    | Botones de Editar, Eliminar y Convertir      |
+
+---
+
+## Filtros disponibles
+
+| Filtro          | Tipo              | Descripcion                                               |
+|-----------------|-------------------|-----------------------------------------------------------|
+| Buscar por nombre | Texto libre     | Filtra leads cuyo nombre contenga el texto ingresado      |
+| Mes             | Selector          | Filtra por el mes de la fecha del lead (Enero a Diciembre)|
+| Estado          | Selector          | Filtra por resultado de llamada (ver valores abajo)       |
+| Reiniciar filtros | Boton           | Aparece cuando hay filtros activos; los limpia todos      |
+
+### Valores de resultado de llamada
+
+- `1er Contacto`
+- `Contactado`
+- `Interesado`
+- `No interesado`
+- `Numero Incorrecto`
+- `Llamar mas tarde`
+
+---
+
+## Acciones disponibles
+
+### Crear un nuevo lead
+
+Boton **"+ Nuevo Lead"**. Abre un formulario modal con los siguientes campos:
+
+| Campo              | Tipo      | Obligatorio | Descripcion                                  |
+|--------------------|-----------|:-----------:|----------------------------------------------|
+| Nombre Completo    | Texto     | Si          | Nombre del prospecto                         |
+| Carrera Interes    | Selector  | Si          | Opciones: LV, WY, LT, LD, YN, LG, VD, UI, GF, WE |
+| Resultado Llamada  | Selector  | No          | Estado del seguimiento telefonico            |
+| Horario Llamada    | Selector  | No          | Manana, Tarde o Noche                        |
+| Comentario         | Textarea  | No          | Notas adicionales                            |
+
+La fecha del lead se asigna automaticamente con la fecha actual.
+
+### Editar un lead
+
+Boton **"Editar"** en cada fila. Abre el mismo formulario de creacion con los datos precargados. Se pueden modificar: nombre, carrera, resultado de llamada, horario y comentario.
+
+### Eliminar un lead
+
+Boton **"Eliminar"** en cada fila. Muestra un modal de confirmacion con el nombre del lead. La eliminacion es permanente.
+
+### Convertir un lead a oportunidad
+
+Boton **"Convertir"** disponible solo en leads que aun no fueron convertidos. Los leads ya convertidos muestran la etiqueta verde "Convertido".
+
+Al presionar se abre un formulario con datos adicionales necesarios para la oportunidad:
+
+| Campo              | Tipo       | Descripcion                                    |
+|--------------------|------------|------------------------------------------------|
+| Cedula             | Texto      | Cedula de identidad                            |
+| Telefono           | Texto      | Numero de contacto                             |
+| Mail               | Email      | Correo electronico                             |
+| SAPE               | Texto      | Codigo SAPE del interesado                     |
+| Tipo Liceo         | Selector   | Publico, Privado o Interior                    |
+| Proceso Inicio     | Selector   | Periodo de inicio (Marzo/Agosto 2023 a 2030)   |
+| Fase               | Selector   | Fase inicial de la oportunidad                 |
+| Agendar RAS        | Checkbox   | Si se activa, permite agendar una reunion      |
+
+Si se activa **"Agendar RAS"**, aparecen campos adicionales:
+
+| Campo              | Tipo       | Descripcion                                    |
+|--------------------|------------|------------------------------------------------|
+| Quien hace RAS     | Selector   | Agente que realiza la reunion                  |
+| Fecha              | Date       | Fecha de la reunion                            |
+| Modalidad          | Selector   | Presencial o En linea                          |
+
+Tras confirmar la conversion, el sistema:
+1. Crea la oportunidad con los datos del lead + datos adicionales.
+2. Marca el lead como "convertido".
+3. Redirige automaticamente a la pagina de Oportunidades.
+4. Si se agendo RAS, crea la reunion correspondiente.
+
+### Importar CSV
+
+Boton **"Importar CSV"**. Permite cargar multiples leads desde un archivo CSV. Campos esperados en el CSV:
+
+- `nombre` (obligatorio)
+- `carrera_interes`
+- `resultado_llamada`
+- `horario_llamada`
+- `comentario`
+
+Los leads importados se crean con fecha actual y 1 intento de llamado.
+
+### Exportar graficas como imagen
+
+Boton **"Imagen"**. Descarga las graficas visibles como archivo de imagen.
+
+### Exportar datos como CSV
+
+Boton **"CSV"**. Descarga los datos de las graficas en formato CSV.

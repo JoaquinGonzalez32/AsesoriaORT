@@ -39,7 +39,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onRegister }) => {
       <div className="w-full max-w-md">
         <div className="flex items-center justify-center gap-3 mb-8">
           <IconTarget size={32} className="text-blue-600" />
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">CRM Admisiones</h1>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">CRM Asesoría</h1>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 space-y-6">

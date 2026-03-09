@@ -108,36 +108,34 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-gray-50">
-      <nav className="bg-blue-900 text-white w-full md:w-64 md:min-h-screen flex flex-row md:flex-col items-center md:items-stretch py-4 md:py-8 px-4 z-20 sticky top-0 md:static shadow-lg">
-        <div className="hidden md:flex items-center gap-3 mb-10 px-2">
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      <nav className="bg-blue-900 text-white w-full flex items-center px-6 py-3 z-20 sticky top-0 shadow-lg gap-6">
+        <div className="flex items-center gap-3 mr-4">
           <IconTarget size={24} className="text-blue-200" />
-          <h1 className="text-xl font-bold tracking-tight">CRM Admisiones</h1>
+          <h1 className="hidden sm:block text-xl font-bold tracking-tight">CRM Asesoría</h1>
         </div>
-        <div className="flex md:flex-col flex-row flex-1 justify-around md:justify-start gap-1 md:gap-4 w-full">
+        <div className="flex flex-row flex-1 items-center gap-1 md:gap-2">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               end={item.to === '/'}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${isActive ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-blue-800 text-blue-200'}`
+                `flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl transition-all duration-200 ${isActive ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-blue-800 text-blue-200'}`
               }
             >
-              <item.icon size={22} />
-              <span className="hidden md:inline font-medium">{item.label}</span>
+              <item.icon size={20} />
+              <span className="hidden md:inline font-medium text-sm">{item.label}</span>
             </NavLink>
           ))}
         </div>
-        <div className="hidden md:block mt-auto pt-4">
-          <button
-            onClick={signOut}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-blue-200 hover:bg-blue-800 transition-all duration-200"
-          >
-            <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-            <span className="font-medium">Cerrar Sesión</span>
-          </button>
-        </div>
+        <button
+          onClick={signOut}
+          className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl text-blue-200 hover:bg-blue-800 transition-all duration-200"
+        >
+          <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          <span className="hidden md:inline font-medium text-sm">Cerrar Sesión</span>
+        </button>
       </nav>
       <main className="flex-1 p-4 md:p-8 min-w-0">
         <div className="space-y-6">{renderContent()}</div>
