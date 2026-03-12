@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
-import { ROUTES, IconDashboard, IconUsers, IconTarget, IconCalendar, IconSettings } from './constants';
+import { ROUTES, IconDashboard, IconUsers, IconTarget, IconCalendar, IconSettings, IconListaTrabajo } from './constants';
 import Dashboard from './components/Dashboard';
 import LeadsManager from './components/LeadsManager';
 import OpportunitiesManager from './components/OpportunitiesManager';
 import RasesManager from './components/RasesManager';
 import OportunidadDetalle from './components/OportunidadDetalle';
 import GestionUsuarios from './components/GestionUsuarios';
+import ListasTrabajo from './components/ListasTrabajo';
 import RutaProtegida from './components/RutaProtegida';
 import LoginPage from './features/auth/LoginPage';
 import RecuperarPassword from './features/auth/RecuperarPassword';
@@ -94,6 +95,7 @@ const AppLayout: React.FC = () => {
     { to: ROUTES.LEADS, label: 'Leads', icon: IconUsers },
     { to: ROUTES.OPPORTUNITIES, label: 'Oportunidades', icon: IconTarget },
     { to: ROUTES.RASES, label: 'Agenda RASES', icon: IconCalendar },
+    { to: ROUTES.LISTAS_TRABAJO, label: 'Listas de Trabajo', icon: IconListaTrabajo },
   ];
 
   if (tienePermiso(profile?.rol, 'gestionarUsuarios')) {
@@ -121,6 +123,7 @@ const AppLayout: React.FC = () => {
         <Route path="/opportunities/:id" element={<OportunidadDetalle opportunities={opportunities} rases={rases} onUpdateOpp={updateOpp} onDeleteOpp={deleteOpp} onAddRas={handleAddRas} onUpdateRas={updateRas} onDeleteRas={deleteRas} />} />
         <Route path={ROUTES.RASES} element={<RasesManager rases={rases} opportunities={opportunities} onAdd={handleAddRas} onUpdate={updateRas} onDelete={deleteRas} />} />
         <Route path={ROUTES.USUARIOS} element={<GestionUsuarios />} />
+        <Route path={ROUTES.LISTAS_TRABAJO} element={<ListasTrabajo />} />
         <Route path="*" element={<Dashboard leads={leads} opportunities={opportunities} rases={rases} />} />
       </Routes>
     );

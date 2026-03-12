@@ -40,12 +40,17 @@ Tabla principal con las columnas:
 
 ## Filtros disponibles
 
-| Filtro          | Tipo              | Descripcion                                               |
-|-----------------|-------------------|-----------------------------------------------------------|
-| Buscar por nombre | Texto libre     | Filtra leads cuyo nombre contenga el texto ingresado      |
-| Mes             | Selector          | Filtra por el mes de la fecha del lead (Enero a Diciembre)|
-| Estado          | Selector          | Filtra por resultado de llamada (ver valores abajo)       |
-| Reiniciar filtros | Boton           | Aparece cuando hay filtros activos; los limpia todos      |
+| Filtro            | Tipo        | Descripcion                                                              |
+|-------------------|-------------|--------------------------------------------------------------------------|
+| Buscar por nombre | Texto libre | Filtra leads cuyo nombre contenga el texto ingresado                     |
+| Mes               | Selector    | Filtra por el mes de la fecha del lead (Enero a Diciembre)               |
+| Estado            | Selector    | Filtra por resultado de llamada (ver valores abajo)                      |
+| Carrera           | Selector    | Filtra por carrera de interes (LV, WY, LT, LD, YN, LG, VD, UI, GF, WE) |
+| Desde             | Fecha       | Muestra solo leads con fecha igual o posterior a la fecha indicada       |
+| Hasta             | Fecha       | Muestra solo leads con fecha igual o anterior a la fecha indicada        |
+| Reiniciar filtros | Boton       | Aparece cuando hay filtros activos; los limpia todos                     |
+
+Los filtros **Desde** y **Hasta** pueden usarse en conjunto para definir un rango de fechas. Los selectores **Carrera** y **Estado** se resaltan en azul cuando tienen un valor activo.
 
 ### Valores de resultado de llamada
 
@@ -115,9 +120,19 @@ Tras confirmar la conversion, el sistema:
 3. Redirige automaticamente a la pagina de Oportunidades.
 4. Si se agendo RAS, crea la reunion correspondiente.
 
-### Importar CSV
+### Menu de acciones (⋯)
 
-Boton **"Importar CSV"**. Permite cargar multiples leads desde un archivo CSV. Campos esperados en el CSV:
+Boton con tres puntos ubicado en la barra de filtros. Al hacer click despliega un menu con tres opciones:
+
+| Opcion           | Descripcion                                                   |
+|------------------|---------------------------------------------------------------|
+| Exportar Imagen  | Descarga las graficas visibles como archivo de imagen         |
+| Exportar CSV     | Descarga los datos de las graficas en formato CSV             |
+| Importar CSV     | Abre el selector de archivo para cargar leads desde un CSV   |
+
+#### Importar CSV
+
+Permite cargar multiples leads desde un archivo CSV. Campos esperados:
 
 - `nombre` (obligatorio)
 - `carrera_interes`
@@ -126,14 +141,6 @@ Boton **"Importar CSV"**. Permite cargar multiples leads desde un archivo CSV. C
 - `comentario`
 
 Los leads importados se crean con fecha actual y 1 intento de llamado.
-
-### Exportar graficas como imagen
-
-Boton **"Imagen"**. Descarga las graficas visibles como archivo de imagen.
-
-### Exportar datos como CSV
-
-Boton **"CSV"**. Descarga los datos de las graficas en formato CSV.
 
 ---
 
