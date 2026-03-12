@@ -57,8 +57,9 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
   const [showCharts, setShowCharts] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(true);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [datePickerPos, setDatePickerPos] = useState({ top: 0, left: 0, width: 0 });
   const careerDropdownRef = useRef<HTMLDivElement>(null);
-  const datePickerRef = useRef<HTMLDivElement>(null);
+  const dateButtonRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -80,15 +81,6 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showCareerDropdown]);
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (datePickerRef.current && !datePickerRef.current.contains(e.target as Node)) {
-        setShowDatePicker(false);
-      }
-    };
-    if (showDatePicker) document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showDatePicker]);
 
   const CARRERAS_OPTIONS = ['LV', 'WY', 'LT', 'LD', 'YN', 'LG', 'VD', 'UI', 'GF', 'WE'];
 
@@ -735,11 +727,18 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
                   <option value="false">NO (Pendiente)</option>
                 </select>
               </div>
-              <div className="lg:col-span-2 relative" ref={datePickerRef}>
+              <div className="lg:col-span-2 relative">
                 <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Rango de Fechas</label>
                 <button
+                  ref={dateButtonRef}
                   type="button"
-                  onClick={() => setShowDatePicker(p => !p)}
+                  onClick={() => {
+                    if (dateButtonRef.current) {
+                      const rect = dateButtonRef.current.getBoundingClientRect();
+                      setDatePickerPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+                    }
+                    setShowDatePicker(p => !p);
+                  }}
                   className={`bg-gray-50 border rounded-xl px-4 py-2.5 text-sm w-full font-bold text-left flex items-center justify-between gap-2 transition-all ${(dateFrom || dateTo) ? 'border-blue-400 text-blue-700' : 'border-gray-200 text-gray-500'}`}
                 >
                   <span className="flex items-center gap-2">
@@ -751,7 +750,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
                   <svg className={`w-4 h-4 shrink-0 text-gray-400 transition-transform ${showDatePicker ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
                 </button>
                 {showDatePicker && (
-                  <div className="absolute z-30 mt-1 bg-white border border-gray-200 rounded-2xl shadow-xl p-4 w-full min-w-[320px]">
+                  <div style={{ position: 'fixed', top: datePickerPos.top, left: datePickerPos.left, width: Math.max(datePickerPos.width, 320), zIndex: 9999 }} className="bg-white border border-gray-200 rounded-2xl shadow-xl p-4">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Desde</label>
@@ -762,15 +761,24 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
                         <input type="date" lang="es" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm w-full focus:ring-2 focus:ring-blue-500 outline-none" />
                       </div>
                     </div>
-                    {(dateFrom || dateTo) && (
+                    <div className="flex gap-2 mt-3">
+                      {(dateFrom || dateTo) && (
+                        <button
+                          type="button"
+                          onClick={() => { setDateFrom(''); setDateTo(''); }}
+                          className="flex-1 text-center text-[10px] font-black uppercase text-red-500 hover:bg-red-50 py-2 rounded-xl border border-red-100 transition-colors"
+                        >
+                          Limpiar
+                        </button>
+                      )}
                       <button
                         type="button"
-                        onClick={() => { setDateFrom(''); setDateTo(''); setShowDatePicker(false); }}
-                        className="mt-3 w-full text-center text-[10px] font-black uppercase text-red-500 hover:bg-red-50 py-2 rounded-xl border border-red-100 transition-colors"
+                        onClick={() => setShowDatePicker(false)}
+                        className="flex-1 text-center text-[10px] font-black uppercase text-white bg-blue-600 hover:bg-blue-700 py-2 rounded-xl transition-colors"
                       >
-                        Limpiar rango
+                        Listo
                       </button>
-                    )}
+                    </div>
                   </div>
                 )}
               </div>
