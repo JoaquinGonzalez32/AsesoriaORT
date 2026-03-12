@@ -8,9 +8,9 @@ Pagina para administrar los prospectos (leads) entrantes al sistema. Es la prime
 
 ## Contenido de la pagina
 
-### Panel de KPIs
+### Panel de KPIs y Graficas
 
-En la parte superior se muestran tarjetas con metricas clave:
+En la parte superior hay un boton de toggle **"Graficas y KPIs"** que muestra u oculta el panel de metricas. Por defecto esta oculto. Al expandirlo se muestran:
 
 - **Prospectos Filtrados**: cantidad de leads que coinciden con los filtros activos, junto con el total general.
 - **Efectividad del Filtro**: porcentaje de leads contactados o interesados sobre el total filtrado (tasa de contacto).
@@ -26,14 +26,15 @@ Grafico horizontal ubicado junto a los KPIs. Su comportamiento cambia segun los 
 
 Tabla principal con las columnas:
 
-| Columna     | Descripcion                                  |
-|-------------|----------------------------------------------|
-| Fecha       | Fecha de ingreso del lead                    |
-| Nombre      | Nombre completo del prospecto                |
-| Carrera     | Carrera de interes (codigo abreviado)        |
-| Resultado   | Estado actual del seguimiento telefonico     |
-| Comentario  | Notas u observaciones (texto truncado)       |
-| Acciones    | Botones de Editar, Eliminar y Convertir      |
+| Columna     | Descripcion                                                              |
+|-------------|--------------------------------------------------------------------------|
+| Fecha       | Fecha de ingreso del lead                                                |
+| Nombre      | Nombre completo del prospecto                                            |
+| Carrera     | Carrera de interes (codigo abreviado)                                    |
+| Resultado   | Estado actual del seguimiento telefonico                                 |
+| Intentos    | Cantidad de intentos de llamado realizados                               |
+| Comentario  | Notas u observaciones (texto truncado)                                   |
+| Acciones    | Boton "Convertir" + menu desplegable (⋮) con opciones Editar y Eliminar  |
 
 ---
 
@@ -63,23 +64,24 @@ Tabla principal con las columnas:
 
 Boton **"+ Nuevo Lead"**. Abre un formulario modal con los siguientes campos:
 
-| Campo              | Tipo      | Obligatorio | Descripcion                                  |
-|--------------------|-----------|:-----------:|----------------------------------------------|
-| Nombre Completo    | Texto     | Si          | Nombre del prospecto                         |
+| Campo              | Tipo      | Obligatorio | Descripcion                                       |
+|--------------------|-----------|:-----------:|---------------------------------------------------|
+| Nombre Completo    | Texto     | Si          | Nombre del prospecto                              |
 | Carrera Interes    | Selector  | Si          | Opciones: LV, WY, LT, LD, YN, LG, VD, UI, GF, WE |
-| Resultado Llamada  | Selector  | No          | Estado del seguimiento telefonico            |
-| Horario Llamada    | Selector  | No          | Manana, Tarde o Noche                        |
-| Comentario         | Textarea  | No          | Notas adicionales                            |
+| Resultado Llamada  | Selector  | No          | Estado del seguimiento telefonico                 |
+| Intentos de Llamado| Numero    | No          | Cantidad de intentos realizados (default: 1)      |
+| Horario Llamada    | Selector  | No          | Manana, Tarde o Noche                             |
+| Comentario         | Textarea  | No          | Notas adicionales                                 |
 
 La fecha del lead se asigna automaticamente con la fecha actual.
 
 ### Editar un lead
 
-Boton **"Editar"** en cada fila. Abre el mismo formulario de creacion con los datos precargados. Se pueden modificar: nombre, carrera, resultado de llamada, horario y comentario.
+Opcion **"Editar"** dentro del menu desplegable (⋮) de cada fila. Abre el mismo formulario de creacion con los datos precargados. Se pueden modificar: nombre, carrera, resultado de llamada, intentos de llamado, horario y comentario.
 
 ### Eliminar un lead
 
-Boton **"Eliminar"** en cada fila. Muestra un modal de confirmacion con el nombre del lead. La eliminacion es permanente.
+Opcion **"Eliminar"** dentro del menu desplegable (⋮) de cada fila. Muestra un modal de confirmacion con el nombre del lead. La eliminacion es permanente.
 
 ### Convertir un lead a oportunidad
 
@@ -100,11 +102,12 @@ Al presionar se abre un formulario con datos adicionales necesarios para la opor
 
 Si se activa **"Agendar RAS"**, aparecen campos adicionales:
 
-| Campo              | Tipo       | Descripcion                                    |
-|--------------------|------------|------------------------------------------------|
-| Quien hace RAS     | Selector   | Agente que realiza la reunion                  |
-| Fecha              | Date       | Fecha de la reunion                            |
-| Modalidad          | Selector   | Presencial o En linea                          |
+| Campo              | Tipo       | Descripcion                                           |
+|--------------------|------------|-------------------------------------------------------|
+| Quien hace RAS     | Selector   | Agente que realiza la reunion                         |
+| Fecha              | Date       | Fecha de la reunion                                   |
+| Hora               | Selector   | Hora de la reunion (intervalos de 30 minutos)         |
+| Modalidad          | Selector   | Presencial o En linea                                 |
 
 Tras confirmar la conversion, el sistema:
 1. Crea la oportunidad con los datos del lead + datos adicionales.
@@ -144,21 +147,21 @@ Boton **"CSV"**. Descarga los datos de las graficas en formato CSV.
 | `nombre`            | Nombre completo del prospecto                                      |
 | `carrera_interes`   | Carrera de interes (codigo abreviado)                              |
 | `resultado_llamada` | Estado del seguimiento (1er Contacto, Contactado, etc.)            |
+| `intentos_llamado`  | Cantidad de intentos de llamado realizados                         |
 | `comentario`        | Notas u observaciones (se muestra truncado en la tabla)            |
-| `convertido`        | Se muestra como badge "Convertido" o como boton "Convertir"       |
+| `convertido`        | Se muestra como badge "Convertido" o como boton "Convertir"        |
 
-### Campos visibles solo en el formulario de edicion/creacion
+### Campos visibles solo en el formulario de edicion/creacion (no en la tabla)
 
-| Campo              | Descripcion                                            |
-|--------------------|--------------------------------------------------------|
-| `horario_llamada`  | Horario preferido de llamada (Manana, Tarde o Noche)   |
+| Campo              | Descripcion                                                              |
+|--------------------|--------------------------------------------------------------------------|
+| `horario_llamada`  | Horario preferido de llamada (Manana, Tarde o Noche)                     |
 
 ### Campos no visibles en la interfaz
 
 | Campo              | Descripcion                                                              |
 |--------------------|--------------------------------------------------------------------------|
 | `lead_id`          | Identificador unico (UUID generado automaticamente por Supabase)         |
-| `intentos_llamado` | Contador de intentos de llamada (se inicializa en 1, no se muestra ni se edita) |
 | `owner`            | ID del usuario que creo el lead (se asigna automaticamente al crear)     |
 | `created_at`       | Fecha y hora de creacion del registro                                    |
 | `updated_at`       | Fecha y hora de la ultima modificacion                                   |

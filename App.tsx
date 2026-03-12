@@ -11,7 +11,7 @@ import RutaProtegida from './components/RutaProtegida';
 import LoginPage from './features/auth/LoginPage';
 import RecuperarPassword from './features/auth/RecuperarPassword';
 import ActualizarPassword from './features/auth/ActualizarPassword';
-import { useAuth } from './context/AuthContext';
+import { useAuth } from './hooks/useAuth';
 import { useLeads } from './hooks/useLeads';
 import { useRases } from './hooks/useRases';
 import { useOpportunities } from './hooks/useOpportunities';
