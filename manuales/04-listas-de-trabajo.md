@@ -33,6 +33,8 @@ Muestra todas las listas creadas, ordenadas por fecha de creacion (mas reciente 
 | Progreso       | Barra de progreso + texto "X de Y" indicando cuantos items fueron gestionados (resultado distinto de "Sin gestionar") |
 | Acciones       | Botones Ver y Eliminar                                                   |
 
+Encima de la tabla hay un campo de busqueda que filtra las listas por nombre en tiempo real. Se resalta en azul cuando tiene texto activo. Al volver desde el detalle de una lista, el buscador se resetea automaticamente.
+
 Si no hay listas creadas, la tabla muestra un mensaje indicandolo.
 
 ---

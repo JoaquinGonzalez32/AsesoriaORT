@@ -57,9 +57,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
   const [showCharts, setShowCharts] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(true);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [datePickerPos, setDatePickerPos] = useState({ top: 0, left: 0, width: 0 });
   const careerDropdownRef = useRef<HTMLDivElement>(null);
-  const dateButtonRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -639,11 +637,11 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
       </div>
 
       {/* Advanced Filter Bar */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
         <button
           type="button"
           onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-          className="w-full flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors"
+          className="w-full flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors rounded-2xl"
         >
           <div className="flex items-center gap-2">
             <svg className="w-4 h-4 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
@@ -730,15 +728,8 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
               <div className="lg:col-span-2 relative">
                 <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Rango de Fechas</label>
                 <button
-                  ref={dateButtonRef}
                   type="button"
-                  onClick={() => {
-                    if (dateButtonRef.current) {
-                      const rect = dateButtonRef.current.getBoundingClientRect();
-                      setDatePickerPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
-                    }
-                    setShowDatePicker(p => !p);
-                  }}
+                  onClick={() => setShowDatePicker(p => !p)}
                   className={`bg-gray-50 border rounded-xl px-4 py-2.5 text-sm w-full font-bold text-left flex items-center justify-between gap-2 transition-all ${(dateFrom || dateTo) ? 'border-blue-400 text-blue-700' : 'border-gray-200 text-gray-500'}`}
                 >
                   <span className="flex items-center gap-2">
@@ -750,7 +741,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
                   <svg className={`w-4 h-4 shrink-0 text-gray-400 transition-transform ${showDatePicker ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
                 </button>
                 {showDatePicker && (
-                  <div style={{ position: 'fixed', top: datePickerPos.top, left: datePickerPos.left, width: Math.max(datePickerPos.width, 320), zIndex: 9999 }} className="bg-white border border-gray-200 rounded-2xl shadow-xl p-4">
+                  <div className="absolute z-50 mt-1 bg-white border border-gray-200 rounded-2xl shadow-xl p-4 w-full min-w-[320px]">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Desde</label>
