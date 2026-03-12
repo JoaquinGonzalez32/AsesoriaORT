@@ -22,9 +22,13 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  const [carreraFilter, setCarreraFilter] = useState('');
+  const [desdeFilter, setDesdeFilter] = useState('');
+  const [hastaFilter, setHastaFilter] = useState('');
   const [rasAgendada, setRasAgendada] = useState(false);
   const [showCharts, setShowCharts] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
 
   useEffect(() => {
     const hasModal = showModal || !!leadToDelete || !!showConvertModal;
@@ -69,9 +73,12 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
       const matchesStatus = !statusFilter || l.resultado_llamada === statusFilter;
       const leadMonth = l.fecha_lead.split('-')[1];
       const matchesMonth = !monthFilter || leadMonth === monthFilter;
-      return matchesSearch && matchesStatus && matchesMonth;
+      const matchesCarrera = !carreraFilter || l.carrera_interes === carreraFilter;
+      const matchesDesde = !desdeFilter || l.fecha_lead >= desdeFilter;
+      const matchesHasta = !hastaFilter || l.fecha_lead <= hastaFilter;
+      return matchesSearch && matchesStatus && matchesMonth && matchesCarrera && matchesDesde && matchesHasta;
     });
-  }, [leads, filter, statusFilter, monthFilter]);
+  }, [leads, filter, statusFilter, monthFilter, carreraFilter, desdeFilter, hastaFilter]);
 
   const stats = useMemo(() => {
     const total = activeLeads.length;
@@ -273,37 +280,77 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
               {Object.values(ResultadoLlamada).map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
-          {(filter || statusFilter || monthFilter) && (
-            <button onClick={() => { setFilter(''); setStatusFilter(''); setMonthFilter(''); }} className="w-full sm:w-auto text-gray-400 hover:text-red-500 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors active:scale-95 whitespace-nowrap">
+          <div className="relative w-full sm:w-36">
+            <select value={carreraFilter} onChange={(e) => setCarreraFilter(e.target.value)} className={`w-full border rounded-xl px-4 py-2.5 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none shadow-sm appearance-none ${carreraFilter ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-700'}`}>
+              <option value="">Todas las Carreras</option>
+              {CARRERAS_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <input
+            type="date"
+            value={desdeFilter}
+            onChange={(e) => setDesdeFilter(e.target.value)}
+            title="Desde"
+            className={`w-full sm:w-auto border rounded-xl px-4 py-2.5 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none shadow-sm ${desdeFilter ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-500'}`}
+          />
+          <input
+            type="date"
+            value={hastaFilter}
+            onChange={(e) => setHastaFilter(e.target.value)}
+            title="Hasta"
+            className={`w-full sm:w-auto border rounded-xl px-4 py-2.5 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none shadow-sm ${hastaFilter ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-500'}`}
+          />
+          {(filter || statusFilter || monthFilter || carreraFilter || desdeFilter || hastaFilter) && (
+            <button onClick={() => { setFilter(''); setStatusFilter(''); setMonthFilter(''); setCarreraFilter(''); setDesdeFilter(''); setHastaFilter(''); }} className="w-full sm:w-auto text-gray-400 hover:text-red-500 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors active:scale-95 whitespace-nowrap">
               Reiniciar filtros
             </button>
           )}
           <input type="file" ref={fileInputRef} onChange={handleImportCSV} accept=".csv" className="hidden" />
-          <button onClick={() => {
-            const charts: ChartData[] = [{
-              title: stats.chartTitle,
-              data: stats.chartData.map((d, i) => ({ ...d, color: RESULTADO_HEX[d.name] || (i % 2 === 0 ? '#2563eb' : '#93c5fd') })),
-              type: 'bar-horizontal',
-            }];
-            exportChartsAsImage(charts, 'leads_graficas');
-          }} className="w-full sm:w-auto bg-white border border-gray-200 text-gray-700 px-6 py-2.5 rounded-xl font-bold shadow-sm hover:bg-gray-50 transition-all text-sm active:scale-95 whitespace-nowrap flex items-center justify-center gap-2">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Imagen
-          </button>
-          <button onClick={() => {
-            const charts: ChartData[] = [{
-              title: stats.chartTitle,
-              data: stats.chartData,
-              type: 'bar-horizontal',
-            }];
-            exportChartsAsCSV(charts, 'leads_datos');
-          }} className="w-full sm:w-auto bg-white border border-gray-200 text-gray-700 px-6 py-2.5 rounded-xl font-bold shadow-sm hover:bg-gray-50 transition-all text-sm active:scale-95 whitespace-nowrap flex items-center justify-center gap-2">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-            CSV
-          </button>
-          <button onClick={() => fileInputRef.current?.click()} className="w-full sm:w-auto bg-gray-100 text-gray-700 px-6 py-2.5 rounded-xl font-bold shadow-sm hover:bg-gray-200 transition-all text-sm active:scale-95 whitespace-nowrap">
-            Importar CSV
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowActionsMenu(p => !p)}
+              className="w-full sm:w-auto bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl font-bold shadow-sm hover:bg-gray-50 transition-all text-sm active:scale-95 flex items-center gap-2"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+            </button>
+            {showActionsMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowActionsMenu(false)} />
+                <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-44 animate-in zoom-in-95 duration-150">
+                  <button
+                    onClick={() => {
+                      const charts: ChartData[] = [{ title: stats.chartTitle, data: stats.chartData.map((d, i) => ({ ...d, color: RESULTADO_HEX[d.name] || (i % 2 === 0 ? '#2563eb' : '#93c5fd') })), type: 'bar-horizontal' }];
+                      exportChartsAsImage(charts, 'leads_graficas');
+                      setShowActionsMenu(false);
+                    }}
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Exportar Imagen
+                  </button>
+                  <button
+                    onClick={() => {
+                      const charts: ChartData[] = [{ title: stats.chartTitle, data: stats.chartData, type: 'bar-horizontal' }];
+                      exportChartsAsCSV(charts, 'leads_datos');
+                      setShowActionsMenu(false);
+                    }}
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    Exportar CSV
+                  </button>
+                  <div className="border-t border-gray-100 my-1" />
+                  <button
+                    onClick={() => { fileInputRef.current?.click(); setShowActionsMenu(false); }}
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Importar CSV
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
           <button onClick={openCreateModal} className="w-full sm:w-auto bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg hover:bg-blue-700 transition-all active:scale-95 whitespace-nowrap">
             + Nuevo Lead
           </button>
