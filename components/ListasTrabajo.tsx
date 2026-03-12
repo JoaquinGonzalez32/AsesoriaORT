@@ -110,6 +110,12 @@ const ListasTrabajo: React.FC = () => {
   const [editingComentario, setEditingComentario] = useState<string | null>(null);
   const [comentarioValue, setComentarioValue] = useState('');
 
+  // Modal importar mas CSV (Vista 2)
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importCsvFile, setImportCsvFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+
   // ─── Fetch ────────────────────────────────────────────────────────────────
   const fetchListas = async () => {
     setLoadingListas(true);
@@ -233,6 +239,52 @@ const ListasTrabajo: React.FC = () => {
     setEditingComentario(null);
   };
 
+  const handleImportMas = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!importCsvFile || !selectedLista) { setImportError('Selecciona un archivo CSV'); return; }
+    setImporting(true);
+    setImportError(null);
+    try {
+      const text = await importCsvFile.text();
+      const rows = parseCSV(text);
+      if (rows.length === 0 || !('nombre' in rows[0])) {
+        setImportError('El CSV debe tener al menos una fila con la columna "nombre"');
+        setImporting(false);
+        return;
+      }
+      const itemsToInsert = rows.map(row => ({
+        lista_id: selectedLista.id,
+        nombre: row.nombre || '',
+        cedula: row.cedula || null,
+        mail: row.mail || null,
+        telefono: row.telefono || null,
+        sape: row.sape || null,
+        carrera: row.carrera || null,
+        fase_original: row.fase || null,
+        proceso_inicio: row.proceso_inicio || null,
+        liceo_tipo: row.liceo_tipo || null,
+        resultado: 'Sin gestionar',
+        comentario: null,
+      }));
+      const { error: itemsError } = await supabase.from('lista_items').insert(itemsToInsert);
+      if (itemsError) throw itemsError;
+      const newTotal = selectedLista.total_items + rows.length;
+      const { error: updateError } = await supabase
+        .from('listas_trabajo')
+        .update({ total_items: newTotal })
+        .eq('id', selectedLista.id);
+      if (updateError) throw updateError;
+      setSelectedLista({ ...selectedLista, total_items: newTotal });
+      setShowImportModal(false);
+      setImportCsvFile(null);
+      await fetchItems(selectedLista.id);
+    } catch (err: any) {
+      setImportError(err.message || 'Error al importar');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const exportCSV = () => {
     if (!selectedLista) return;
     const BOM = '\uFEFF';
@@ -295,15 +347,26 @@ const ListasTrabajo: React.FC = () => {
               <p className="text-sm text-gray-400">{formatDate(selectedLista.created_at)} &middot; {selectedLista.total_items} items</p>
             </div>
           </div>
-          <button
-            onClick={exportCSV}
-            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-green-700 transition-all shadow"
-          >
-            <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            Exportar CSV
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => { setShowImportModal(true); setImportError(null); setImportCsvFile(null); }}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-700 transition-all shadow"
+            >
+              <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              Importar CSV
+            </button>
+            <button
+              onClick={exportCSV}
+              className="flex items-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-green-700 transition-all shadow"
+            >
+              <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              Exportar CSV
+            </button>
+          </div>
         </div>
 
         {/* Resumen por resultado */}
@@ -429,6 +492,67 @@ const ListasTrabajo: React.FC = () => {
               </table>
             </div>
           </div>
+        )}
+
+        {/* Modal importar mas CSV */}
+        {showImportModal && (
+          <>
+            <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => !importing && setShowImportModal(false)} />
+            <div className="fixed inset-0 z-50 overflow-y-auto pointer-events-none">
+              <div className="min-h-full flex items-start justify-center py-8 px-4">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg pointer-events-auto animate-in zoom-in-95 duration-200">
+                  <form onSubmit={handleImportMas}>
+                    <div className="px-8 py-6 bg-blue-600 text-white rounded-t-2xl">
+                      <h3 className="text-xl font-bold">Importar CSV adicional</h3>
+                      <p className="text-sm opacity-80">{selectedLista.nombre}</p>
+                    </div>
+                    <div className="p-8 space-y-5">
+                      {importError && (
+                        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 font-medium">
+                          {importError}
+                        </div>
+                      )}
+                      <div>
+                        <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Archivo CSV</label>
+                        <input
+                          type="file"
+                          accept=".csv"
+                          required
+                          onChange={e => setImportCsvFile(e.target.files?.[0] || null)}
+                          className="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+                        />
+                        <p className="text-[11px] text-gray-400 mt-1.5">
+                          Los nuevos items se agregan al final de la lista con resultado <span className="font-semibold">Sin gestionar</span>.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="px-8 py-4 bg-gray-50 rounded-b-2xl flex justify-end gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowImportModal(false)}
+                        disabled={importing}
+                        className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-all disabled:opacity-50"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={importing}
+                        className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center gap-2"
+                      >
+                        {importing ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Importando...
+                          </>
+                        ) : 'Agregar items'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </>
         )}
       </div>
     );

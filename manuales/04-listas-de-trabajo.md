@@ -86,7 +86,12 @@ Se accede haciendo click en **"Ver"** desde el listado. Muestra todos los items 
 
 ### Cabecera
 
-Muestra el nombre de la lista, la fecha de creacion y la cantidad total de items. El boton **"← Volver"** regresa al listado de listas.
+Muestra el nombre de la lista, la fecha de creacion y la cantidad total de items. El boton **"← Volver"** regresa al listado de listas. En el extremo derecho se encuentran dos botones:
+
+| Boton          | Descripcion                                                   |
+|----------------|---------------------------------------------------------------|
+| Importar CSV   | Agrega nuevos items a la lista desde un archivo CSV adicional |
+| Exportar CSV   | Descarga todos los items de la lista como archivo CSV         |
 
 ### Panel de resumen por resultado
 
@@ -127,6 +132,21 @@ El contador inferior derecho indica cuantos items coinciden con los filtros acti
 | Fase Original | Fase que tenia la oportunidad al momento de importar (solo lectura)            |
 | Resultado     | Selector editable directamente en la tabla (ver valores abajo)                 |
 | Comentario    | Texto editable haciendo click sobre la celda                                   |
+
+---
+
+## Importar CSV adicional
+
+Boton **"Importar CSV"** en la cabecera de la vista detalle. Permite agregar mas items a una lista ya existente sin necesidad de crear una nueva.
+
+Al hacer click se abre un modal con un campo de archivo. El formato del CSV es identico al de la importacion inicial (mismas columnas, mismas reglas). Al confirmar:
+
+1. Se parsea el CSV y se insertan los nuevos items al final de la lista.
+2. Todos los items nuevos entran con resultado "Sin gestionar" y sin comentario.
+3. El contador de items total de la lista se actualiza sumando los nuevos.
+4. La tabla se refresca mostrando los items anteriores mas los recien importados.
+
+Esta accion es util cuando se trabaja en etapas: por ejemplo, importar un primer lote, gestionar esos contactos, y luego sumar un segundo lote a la misma lista de trabajo.
 
 ---
 
@@ -176,7 +196,7 @@ El archivo viene con BOM para compatibilidad con Excel y abre correctamente con 
 | `id`         | Identificador unico (UUID)                            |
 | `nombre`     | Nombre descriptivo de la lista                        |
 | `created_at` | Fecha y hora de creacion                              |
-| `total_items`| Cantidad de items importados al crear la lista        |
+| `total_items`| Cantidad total de items en la lista (se actualiza cada vez que se importa un CSV adicional) |
 | `updated_at` | Fecha y hora de ultima actualizacion del registro     |
 
 ### Item (lista_items)

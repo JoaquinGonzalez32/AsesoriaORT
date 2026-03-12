@@ -56,7 +56,9 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
   const [showCareerDropdown, setShowCareerDropdown] = useState(false);
   const [showCharts, setShowCharts] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(true);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const careerDropdownRef = useRef<HTMLDivElement>(null);
+  const datePickerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -77,6 +79,16 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
     if (showCareerDropdown) document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showCareerDropdown]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (datePickerRef.current && !datePickerRef.current.contains(e.target as Node)) {
+        setShowDatePicker(false);
+      }
+    };
+    if (showDatePicker) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showDatePicker]);
 
   const CARRERAS_OPTIONS = ['LV', 'WY', 'LT', 'LD', 'YN', 'LG', 'VD', 'UI', 'GF', 'WE'];
 
@@ -723,13 +735,44 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
                   <option value="false">NO (Pendiente)</option>
                 </select>
               </div>
-              <div>
-                <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Desde</label>
-                <input type="date" lang="es" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full" />
-              </div>
-              <div>
-                <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Hasta</label>
-                <input type="date" lang="es" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full" />
+              <div className="lg:col-span-2 relative" ref={datePickerRef}>
+                <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Rango de Fechas</label>
+                <button
+                  type="button"
+                  onClick={() => setShowDatePicker(p => !p)}
+                  className={`bg-gray-50 border rounded-xl px-4 py-2.5 text-sm w-full font-bold text-left flex items-center justify-between gap-2 transition-all ${(dateFrom || dateTo) ? 'border-blue-400 text-blue-700' : 'border-gray-200 text-gray-500'}`}
+                >
+                  <span className="flex items-center gap-2">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    {dateFrom || dateTo
+                      ? `${dateFrom ? new Date(dateFrom + 'T00:00:00').toLocaleDateString('es-UY', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '…'}  →  ${dateTo ? new Date(dateTo + 'T00:00:00').toLocaleDateString('es-UY', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '…'}`
+                      : 'Todas las fechas'}
+                  </span>
+                  <svg className={`w-4 h-4 shrink-0 text-gray-400 transition-transform ${showDatePicker ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                {showDatePicker && (
+                  <div className="absolute z-30 mt-1 bg-white border border-gray-200 rounded-2xl shadow-xl p-4 w-full min-w-[320px]">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Desde</label>
+                        <input type="date" lang="es" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm w-full focus:ring-2 focus:ring-blue-500 outline-none" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Hasta</label>
+                        <input type="date" lang="es" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm w-full focus:ring-2 focus:ring-blue-500 outline-none" />
+                      </div>
+                    </div>
+                    {(dateFrom || dateTo) && (
+                      <button
+                        type="button"
+                        onClick={() => { setDateFrom(''); setDateTo(''); setShowDatePicker(false); }}
+                        className="mt-3 w-full text-center text-[10px] font-black uppercase text-red-500 hover:bg-red-50 py-2 rounded-xl border border-red-100 transition-colors"
+                      >
+                        Limpiar rango
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="flex items-end">
                 <button onClick={resetAllFilters} className="w-full bg-gray-900 text-white text-[10px] font-black uppercase py-3 rounded-xl hover:bg-black transition-all shadow-md active:scale-95">Limpiar filtros</button>
