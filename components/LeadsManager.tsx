@@ -42,6 +42,7 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
   }, [showModal, leadToDelete, showConvertModal]);
 
   const RESULTADO_COLOR: Record<string, string> = {
+    [ResultadoLlamada.SinGestion]: 'bg-slate-100 text-slate-500',
     [ResultadoLlamada.PrimerContacto]: 'bg-blue-100 text-blue-700',
     [ResultadoLlamada.Contactado]: 'bg-green-100 text-green-700',
     [ResultadoLlamada.Interesado]: 'bg-emerald-100 text-emerald-700',
@@ -51,6 +52,7 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
   };
 
   const RESULTADO_HEX: Record<string, string> = {
+    [ResultadoLlamada.SinGestion]: '#94a3b8',
     [ResultadoLlamada.PrimerContacto]: '#3b82f6',
     [ResultadoLlamada.Contactado]: '#22c55e',
     [ResultadoLlamada.Interesado]: '#16a34a',
@@ -109,6 +111,24 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const normalizeStr = (s: string) =>
+      s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+    const PRODUCTO_A_CARRERA = Object.fromEntries(
+      Object.entries({
+        'Diseñador Gráfico': 'GF',
+        'Diseñador Digital': 'WE',
+        'Licenciatura en Animación y Videojuegos': 'LV',
+        'Licenciatura en Diseño Multimedia': 'LD',
+        'Licenciatura en Diseño, Arte y Tecnología': 'LT',
+        'Licenciatura en Diseño de Modas': 'WY',
+        'Licenciatura en Diseño Gráfico': 'LG',
+        'Desarrollo y Producción de Videojuegos': 'VD',
+        'Diseño de Interfaces': 'UI',
+        'Licenciatura en Diseño Industrial': 'YN',
+      }).map(([k, v]) => [normalizeStr(k), v])
+    );
+
     const reader = new FileReader();
     reader.onload = async (event) => {
       const text = event.target?.result as string;
@@ -116,29 +136,57 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
       if (lines.length <= 1) return;
 
       const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+
+      const requiredCols = ['Nombre', 'Primer Apellido', 'Producto'];
+      const missingCols = requiredCols.filter(col => !headers.includes(col));
+      if (missingCols.length > 0) {
+        alert(`Formato de CSV no válido. Faltan las columnas: ${missingCols.join(', ')}.\n\nEste importador solo acepta el formato de exportación externo (ZOHO).`);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+
       const data = lines.slice(1).map(line => {
         const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.trim().replace(/^"|"$/g, ''));
-        const obj: any = {};
-        headers.forEach((h, i) => obj[h] = values[i]);
+        const obj: Record<string, string> = {};
+        headers.forEach((h, i) => { obj[h] = values[i] || ''; });
         return obj;
       });
 
       let importedCount = 0;
+      const carrerasNoMapeadas: string[] = [];
+
       for (const item of data) {
-        if (!item.nombre) continue;
+        const nombre = [item['Nombre'], item['Primer Apellido']].filter(Boolean).join(' ').trim();
+        if (!nombre) continue;
+
+        const productoRaw = item['Producto'] || '';
+        const carreraCode = PRODUCTO_A_CARRERA[normalizeStr(productoRaw)] || '';
+        if (productoRaw && !carreraCode && !carrerasNoMapeadas.includes(productoRaw)) {
+          carrerasNoMapeadas.push(productoRaw);
+        }
+
+        const estadoRaw = item['Estado de Lead'] || '';
+        const resultadoValido = Object.values(ResultadoLlamada).includes(estadoRaw as ResultadoLlamada);
+        const resultado = resultadoValido ? (estadoRaw as ResultadoLlamada) : ResultadoLlamada.SinGestion;
+
         await onAdd({
-          nombre: item.nombre,
-          carrera_interes: item.carrera_interes || 'LV',
+          nombre,
+          carrera_interes: carreraCode,
           fecha_lead: new Date().toISOString().split('T')[0],
-          resultado_llamada: (item.resultado_llamada as ResultadoLlamada) || ResultadoLlamada.PrimerContacto,
-          horario_llamada: (item.horario_llamada as HorarioLlamada) || null,
+          resultado_llamada: resultado,
+          horario_llamada: null,
           intentos_llamado: 1,
-          comentario: item.comentario || 'Importado vía CSV',
+          comentario: '',
           owner: null,
         });
         importedCount++;
       }
-      alert(`Se importaron ${importedCount} leads correctamente.`);
+
+      let mensaje = `Se importaron ${importedCount} leads correctamente.`;
+      if (carrerasNoMapeadas.length > 0) {
+        mensaje += `\n\n⚠️ ${carrerasNoMapeadas.length} valor(es) de carrera no reconocido(s):\n${carrerasNoMapeadas.map(c => `• ${c}`).join('\n')}\n\nEstos leads fueron importados con carrera vacía.`;
+      }
+      alert(mensaje);
       if (fileInputRef.current) fileInputRef.current.value = '';
     };
     reader.readAsText(file);

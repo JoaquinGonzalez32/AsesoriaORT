@@ -1,4 +1,5 @@
 export enum ResultadoLlamada {
+  SinGestion = 'Sin Gestión',
   PrimerContacto = '1er Contacto',
   Contactado = 'Contactado',
   NoInteresado = 'No interesado',
@@ -52,6 +53,7 @@ export interface Lead {
 export interface Oportunidad {
   opp_id: string;
   nombre: string;
+  nombre_trato?: string | null;
   cedula?: string;
   telefono?: string;
   mail?: string;

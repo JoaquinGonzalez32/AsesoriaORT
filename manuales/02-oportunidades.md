@@ -62,16 +62,15 @@ El sistema muestra debajo del campo como interpreto la busqueda (carreras y fase
 
 ### Panel de filtros avanzados
 
-| Filtro             | Tipo                | Descripcion                                              |
-|--------------------|---------------------|----------------------------------------------------------|
-| Nombre / CI / Mail | Texto libre         | Busca por nombre, cedula o correo electronico            |
-| Fase               | Selector            | Filtra por fase del pipeline                             |
-| Proceso Inicio     | Selector            | Periodo de inicio (Marzo/Agosto 2023 a 2030)             |
-| Carreras           | Multi-select        | Checkboxes para seleccionar multiples carreras. Filtra contactos que tengan AL MENOS todas las carreras seleccionadas |
-| Realiza RAS        | Selector            | Todos / SI (Realizada) / NO (Pendiente)                  |
-| Desde              | Fecha               | Fecha minima del lead                                    |
-| Hasta              | Fecha               | Fecha maxima del lead                                    |
-| Limpiar            | Boton               | Resetea todos los filtros incluyendo busqueda inteligente|
+| Filtro             | Tipo                 | Descripcion                                              |
+|--------------------|----------------------|----------------------------------------------------------|
+| Nombre / CI / Mail | Texto libre          | Busca por nombre, cedula o correo electronico            |
+| Fase               | Selector             | Filtra por fase del pipeline                             |
+| Proceso Inicio     | Selector             | Periodo de inicio (Marzo/Agosto 2023 a 2030)             |
+| Carreras           | Multi-select         | Checkboxes para seleccionar multiples carreras. Filtra contactos que tengan AL MENOS todas las carreras seleccionadas |
+| Realiza RAS        | Selector             | Todos / SI (Realizada) / NO (Pendiente)                  |
+| Rango de Fechas    | Dropdown con picker  | Boton que despliega dos campos: Desde y Hasta. Muestra el rango activo en el boton. Boton "Listo" para cerrar, "Limpiar" para resetear el rango |
+| Limpiar            | Boton                | Resetea todos los filtros incluyendo busqueda inteligente|
 
 ### Lista de contactos agrupados
 
@@ -135,14 +134,39 @@ Icono de lapiz en la cabecera de cada contacto. Abre un modal para editar: Nombr
 
 Dentro del modal de gestion, boton **"Eliminar Oportunidad"** en la esquina inferior izquierda. Pide confirmacion antes de eliminar.
 
-### Importar CSV
+### Importar CSV (formato externo ZOHO)
 
-Boton **"Importar"**. Campos esperados en el CSV:
+Boton **"Importar"**. Acepta exclusivamente el formato de exportacion del sistema externo (ZOHO). Las columnas obligatorias son `Nombre de Trato` y `Producto`. Si el archivo no las contiene, se muestra un error y no se importa nada.
 
-- `nombre` (obligatorio)
-- `cedula`, `mail`, `carrera_interes`, `liceo`, `liceo_tipo`
-- `fecha_lead`, `ras_agendada` (SI/true), `ras_asistio` (SI/true)
-- `proceso_inicio`, `fase_oportunidad`, `comentario_extra`
+**Columnas del CSV externo:**
+
+| Columna CSV       | Uso                                                                          |
+|-------------------|------------------------------------------------------------------------------|
+| `Nombre de Trato` | Se guarda completo en `nombre_trato`. El nombre de la persona se extrae como el texto **antes del primer ` - `** |
+| `Producto`        | Se traduce al codigo de carrera interno (ver tabla)                          |
+| `Fase`            | Se mapea a la fase del pipeline; si no coincide, queda `Interesado`          |
+| `Codigo SAPE`     | Se guarda en `sape`                                                          |
+| `Proceso`         | Se guarda en `proceso_inicio`                                                |
+| `Record Id`       | Ignorado                                                                     |
+
+**Mapeo de carrera (columna `Producto` → codigo interno):**
+
+| Valor en CSV                                     | Codigo |
+|--------------------------------------------------|:------:|
+| Disenador Grafico                                | GF     |
+| Disenador Digital                                | WE     |
+| Licenciatura en Animacion y Videojuegos          | LV     |
+| Licenciatura en Diseno Multimedia                | LD     |
+| Licenciatura en Diseno, Arte y Tecnologia        | LT     |
+| Licenciatura en Diseno de Modas                  | WY     |
+| Licenciatura en Diseno Grafico                   | LG     |
+| Desarrollo y Produccion de Videojuegos           | VD     |
+| Diseno de Interfaces                             | UI     |
+| Licenciatura en Diseno Industrial                | YN     |
+
+La comparacion es **case-insensitive y tolerante a tildes**. Si el valor de `Producto` no coincide, la oportunidad se importa igualmente con carrera vacia y se muestra un warning indicando los valores no reconocidos.
+
+Los campos de contacto (cedula, telefono, mail), RAS y comentario quedan vacios al importar.
 
 ### Exportar CSV
 

@@ -23,6 +23,7 @@ const PROCESO_OPTIONS = (() => {
 })();
 
 const RESULTADO_HEX: Record<string, string> = {
+  [ResultadoLlamada.SinGestion]: '#94a3b8',
   [ResultadoLlamada.PrimerContacto]: '#1d4ed8',
   [ResultadoLlamada.Contactado]: '#15803d',
   [ResultadoLlamada.Interesado]: '#047857',

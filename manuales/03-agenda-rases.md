@@ -45,10 +45,9 @@ Las tarjetas se organizan en una grilla responsiva (1 columna en movil, 2 en tab
 | Modalidad           | Selector      | Presencial / En linea                                    |
 | Carrera             | Selector      | Lista dinamica de carreras disponibles en los datos      |
 | Estado Oportunidad  | Selector      | Lista dinamica de estados disponibles en los datos       |
-| Mes                 | Selector      | Enero a Diciembre                                        |
-| Desde               | Fecha         | Fecha minima                                             |
-| Hasta               | Fecha         | Fecha maxima                                             |
-| Limpiar             | Boton         | Resetea todos los filtros (aparece solo cuando hay alguno activo) |
+| Mes                 | Selector             | Enero a Diciembre                                        |
+| Rango de Fechas     | Dropdown con picker  | Boton que despliega dos campos: Desde y Hasta. Muestra el rango activo en el boton. Boton "Listo" para cerrar, "Limpiar" para resetear el rango |
+| Limpiar             | Boton                | Resetea todos los filtros (aparece solo cuando hay alguno activo) |
 
 Todos los filtros se aplican de forma combinada (AND). Los selectores de agente, carrera y estado se generan dinamicamente a partir de los datos existentes. Los selectores usan estilo neutro (gris) por defecto y se resaltan en azul cuando tienen un filtro activo.
 

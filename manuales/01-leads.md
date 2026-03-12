@@ -40,20 +40,20 @@ Tabla principal con las columnas:
 
 ## Filtros disponibles
 
-| Filtro            | Tipo        | Descripcion                                                              |
-|-------------------|-------------|--------------------------------------------------------------------------|
-| Buscar por nombre | Texto libre | Filtra leads cuyo nombre contenga el texto ingresado                     |
-| Mes               | Selector    | Filtra por el mes de la fecha del lead (Enero a Diciembre)               |
-| Estado            | Selector    | Filtra por resultado de llamada (ver valores abajo)                      |
-| Carrera           | Selector    | Filtra por carrera de interes (LV, WY, LT, LD, YN, LG, VD, UI, GF, WE) |
-| Desde             | Fecha       | Muestra solo leads con fecha igual o posterior a la fecha indicada       |
-| Hasta             | Fecha       | Muestra solo leads con fecha igual o anterior a la fecha indicada        |
-| Reiniciar filtros | Boton       | Aparece cuando hay filtros activos; los limpia todos                     |
+| Filtro            | Tipo              | Descripcion                                                              |
+|-------------------|-------------------|--------------------------------------------------------------------------|
+| Buscar por nombre | Texto libre       | Filtra leads cuyo nombre contenga el texto ingresado                     |
+| Mes               | Selector          | Filtra por el mes de la fecha del lead (Enero a Diciembre)               |
+| Estado            | Selector          | Filtra por resultado de llamada (ver valores abajo)                      |
+| Carrera           | Selector          | Filtra por carrera de interes (LV, WY, LT, LD, YN, LG, VD, UI, GF, WE) |
+| Rango de Fechas   | Dropdown con piker | Boton que despliega dos campos: Desde y Hasta. Muestra el rango activo en el boton. Boton "Listo" para cerrar, "Limpiar" para resetear el rango |
+| Reiniciar filtros | Boton             | Aparece cuando hay filtros activos; los limpia todos                     |
 
-Los filtros **Desde** y **Hasta** pueden usarse en conjunto para definir un rango de fechas. Los selectores **Carrera** y **Estado** se resaltan en azul cuando tienen un valor activo.
+Los selectores **Carrera** y **Estado** se resaltan en azul cuando tienen un valor activo. El boton de **Rango de Fechas** tambien se resalta en azul cuando tiene algun valor.
 
 ### Valores de resultado de llamada
 
+- `Sin Gestión` *(estado por defecto al importar desde CSV externo)*
 - `1er Contacto`
 - `Contactado`
 - `Interesado`
@@ -128,19 +128,41 @@ Boton con tres puntos ubicado en la barra de filtros. Al hacer click despliega u
 |------------------|---------------------------------------------------------------|
 | Exportar Imagen  | Descarga las graficas visibles como archivo de imagen         |
 | Exportar CSV     | Descarga los datos de las graficas en formato CSV             |
-| Importar CSV     | Abre el selector de archivo para cargar leads desde un CSV   |
+| Importar CSV     | Abre el selector de archivo para cargar leads desde el CSV externo |
 
-#### Importar CSV
+#### Importar CSV (formato externo ZOHO)
 
-Permite cargar multiples leads desde un archivo CSV. Campos esperados:
+El importador acepta exclusivamente el formato de exportacion del sistema externo (ZOHO). Las columnas obligatorias son `Nombre`, `Primer Apellido` y `Producto`. Si el archivo no las contiene, se muestra un error y no se importa nada.
 
-- `nombre` (obligatorio)
-- `carrera_interes`
-- `resultado_llamada`
-- `horario_llamada`
-- `comentario`
+**Columnas del CSV externo:**
 
-Los leads importados se crean con fecha actual y 1 intento de llamado.
+| Columna CSV            | Uso                                                      |
+|------------------------|----------------------------------------------------------|
+| `Nombre`               | Primera parte del nombre del lead                        |
+| `Primer Apellido`      | Segunda parte; se concatena con `Nombre`                 |
+| `Producto`             | Se traduce al codigo de carrera interno (ver tabla)      |
+| `Estado de Lead`       | Se mapea al resultado de llamada; si no coincide, queda `Sin Gestion` |
+| `Proceso`              | Ignorado en este modulo                                  |
+| Resto de columnas      | Ignoradas                                                |
+
+**Mapeo de carrera (columna `Producto` → codigo interno):**
+
+| Valor en CSV                                     | Codigo |
+|--------------------------------------------------|:------:|
+| Disenador Grafico                                | GF     |
+| Disenador Digital                                | WE     |
+| Licenciatura en Animacion y Videojuegos          | LV     |
+| Licenciatura en Diseno Multimedia                | LD     |
+| Licenciatura en Diseno, Arte y Tecnologia        | LT     |
+| Licenciatura en Diseno de Modas                  | WY     |
+| Licenciatura en Diseno Grafico                   | LG     |
+| Desarrollo y Produccion de Videojuegos           | VD     |
+| Diseno de Interfaces                             | UI     |
+| Licenciatura en Diseno Industrial                | YN     |
+
+La comparacion es **case-insensitive y tolerante a tildes**. Si el valor de `Producto` no coincide con ninguna entrada, el lead se importa igualmente con carrera vacia y se muestra un warning al finalizar indicando los valores no reconocidos.
+
+Los leads importados se crean con fecha actual, 1 intento de llamado, comentario vacio y horario nulo.
 
 ---
 

@@ -349,6 +349,24 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const normalizeStr = (s: string) =>
+      s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+    const PRODUCTO_A_CARRERA = Object.fromEntries(
+      Object.entries({
+        'Diseñador Gráfico': 'GF',
+        'Diseñador Digital': 'WE',
+        'Licenciatura en Animación y Videojuegos': 'LV',
+        'Licenciatura en Diseño Multimedia': 'LD',
+        'Licenciatura en Diseño, Arte y Tecnología': 'LT',
+        'Licenciatura en Diseño de Modas': 'WY',
+        'Licenciatura en Diseño Gráfico': 'LG',
+        'Desarrollo y Producción de Videojuegos': 'VD',
+        'Diseño de Interfaces': 'UI',
+        'Licenciatura en Diseño Industrial': 'YN',
+      }).map(([k, v]) => [normalizeStr(k), v])
+    );
+
     const reader = new FileReader();
     reader.onload = async (event) => {
       const text = event.target?.result as string;
@@ -356,34 +374,68 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
       if (lines.length <= 1) return;
 
       const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+
+      const requiredCols = ['Nombre de Trato', 'Producto'];
+      const missingCols = requiredCols.filter(col => !headers.includes(col));
+      if (missingCols.length > 0) {
+        alert(`Formato de CSV no válido. Faltan las columnas: ${missingCols.join(', ')}.\n\nEste importador solo acepta el formato de exportación externo (ZOHO).`);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+
       const data = lines.slice(1).map(line => {
         const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.trim().replace(/^"|"$/g, ''));
-        const obj: any = {};
-        headers.forEach((h, i) => obj[h] = values[i]);
+        const obj: Record<string, string> = {};
+        headers.forEach((h, i) => { obj[h] = values[i] || ''; });
         return obj;
       });
 
       let importedCount = 0;
+      const carrerasNoMapeadas: string[] = [];
+
       for (const item of data) {
-        if (!item.nombre) continue;
+        const nombreTrato = item['Nombre de Trato'] || '';
+        if (!nombreTrato) continue;
+
+        const nombre = nombreTrato.split(' - ')[0].trim();
+
+        const productoRaw = item['Producto'] || '';
+        const carreraCode = PRODUCTO_A_CARRERA[normalizeStr(productoRaw)] || '';
+        if (productoRaw && !carreraCode && !carrerasNoMapeadas.includes(productoRaw)) {
+          carrerasNoMapeadas.push(productoRaw);
+        }
+
+        const faseRaw = item['Fase'] || '';
+        const faseValida = Object.values(FaseOportunidad).includes(faseRaw as FaseOportunidad);
+        const fase = faseValida ? (faseRaw as FaseOportunidad) : FaseOportunidad.Interesado;
+
         await onAdd({
-          nombre: item.nombre,
-          cedula: item.cedula || '',
-          mail: item.mail || '',
-          carrera_interes: item.carrera_interes || 'LV',
-          liceo: item.liceo || '',
-          liceo_tipo: (item.liceo_tipo as LiceoTipo) || LiceoTipo.Publico,
-          fecha_lead: item.fecha_lead || new Date().toISOString().split('T')[0],
-          ras_agendada: item.ras_agendada === 'SÍ' || item.ras_agendada === 'true',
-          ras_asistio: item.ras_asistio === 'SÍ' || item.ras_asistio === 'true',
+          nombre,
+          nombre_trato: nombreTrato,
+          carrera_interes: carreraCode,
+          sape: item['Codigo SAPE'] || '',
+          proceso_inicio: item['Proceso'] || '',
+          fase_oportunidad: fase,
+          cedula: '',
+          telefono: '',
+          mail: '',
+          liceo: '',
+          liceo_tipo: LiceoTipo.Publico,
+          fecha_lead: new Date().toISOString().split('T')[0],
+          ras_agendada: false,
+          ras_asistio: false,
           multiple_interes: false,
-          proceso_inicio: item.proceso_inicio || '',
-          fase_oportunidad: item.fase_oportunidad || FaseOportunidad.Interesado,
-          comentario_extra: item.comentario_extra || 'Importado vía CSV',
+          otros_intereses: [],
+          comentario_extra: '',
         });
         importedCount++;
       }
-      alert(`Se importaron ${importedCount} registros correctamente.`);
+
+      let mensaje = `Se importaron ${importedCount} oportunidades correctamente.`;
+      if (carrerasNoMapeadas.length > 0) {
+        mensaje += `\n\n⚠️ ${carrerasNoMapeadas.length} valor(es) de carrera no reconocido(s):\n${carrerasNoMapeadas.map(c => `• ${c}`).join('\n')}\n\nEstas oportunidades fueron importadas con carrera vacía.`;
+      }
+      alert(mensaje);
       if (fileInputRef.current) fileInputRef.current.value = '';
     };
     reader.readAsText(file);
