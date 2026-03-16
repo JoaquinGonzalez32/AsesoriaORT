@@ -9,7 +9,7 @@ interface RasActions {
 
   const VALID_COLS = [
     'nombre', 'cedula', 'mail', 'telefono', 'sape', 'carrera_interes', 'otros_intereses',
-    'liceo', 'fecha_lead', 'ras_agendada', 'ras_asistio', 'multiple_interes',
+    'liceo', 'fecha_lead', 'ras_agendada', 'multiple_interes',
     'liceo_tipo', 'ras_hecha_por', 'proceso_inicio', 'fase_oportunidad',
     'comentario_extra'
   ];

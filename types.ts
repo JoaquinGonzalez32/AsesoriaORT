@@ -28,6 +28,13 @@ export enum ModalidadRAS {
   EnLinea = 'En línea'
 }
 
+export enum ResultadoRAS {
+  Pendiente = 'Pendiente',
+  Realizada = 'Realizada',
+  Frustrada = 'Frustrada',
+  Cancelada = 'Cancelada'
+}
+
 export enum HorarioLlamada {
   Manana = 'Mañana',
   Tarde = 'Tarde',
@@ -63,7 +70,6 @@ export interface Oportunidad {
   liceo: string;
   fecha_lead: string;
   ras_agendada: boolean;
-  ras_asistio: boolean;
   multiple_interes: boolean;
   liceo_tipo: LiceoTipo;
   ras_hecha_por: string | null;
@@ -86,6 +92,8 @@ export interface RAS {
   modalidad: ModalidadRAS;
   carrera: string;
   estado_oportunidad: string;
+  resultado_ras: ResultadoRAS;
+  comentario?: string | null;
   owner: string | null;
   created_at: string;
   updated_at: string;
@@ -104,5 +112,5 @@ export interface KPIStats {
   interesados: number;
   totalOpps: number;
   rasAgendadas: number;
-  rasAsistidas: number;
+  rasRealizadas: number;
 }

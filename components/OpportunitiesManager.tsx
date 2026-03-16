@@ -37,11 +37,13 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
   });
   const [faseFilter, setFaseFilter] = useState('');
   const [rasAgendadaFilter, setRasAgendadaFilter] = useState('');
-  const [rasAsistioFilter, setRasAsistioFilter] = useState('');
   const [careerFilter, setCareerFilter] = useState<string[]>([]);
+  const [careerMode, setCareerMode] = useState<'any' | 'all'>('any');
   const [nlQuery, setNlQuery] = useState('');
   const [smartConditions, setSmartConditions] = useState<SmartCondition[]>([]);
   const [nlOperator, setNlOperator] = useState<NLOperator>('AND');
+
+  const [showNlInfo, setShowNlInfo] = useState(false);
 
   // Estados de UI
   const [showModal, setShowModal] = useState(false);
@@ -122,11 +124,10 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
         ? true
         : (!faseFilter || o.fase_oportunidad === faseFilter);
       const matchesRasAgendada = !rasAgendadaFilter || (rasAgendadaFilter === 'true' ? o.ras_agendada : !o.ras_agendada);
-      const matchesRasAsistio = !rasAsistioFilter || (rasAsistioFilter === 'true' ? o.ras_asistio : !o.ras_asistio);
 
-      return matchesSearch && matchesDateFrom && matchesDateTo && matchesProceso && matchesFase && matchesRasAgendada && matchesRasAsistio;
+      return matchesSearch && matchesDateFrom && matchesDateTo && matchesProceso && matchesFase && matchesRasAgendada;
     });
-  }, [opportunities, filter, dateFrom, dateTo, procesoFilter, faseFilter, rasAgendadaFilter, rasAsistioFilter, smartConditions]);
+  }, [opportunities, filter, dateFrom, dateTo, procesoFilter, faseFilter, rasAgendadaFilter, smartConditions]);
 
   // Agrupar oportunidades por SAPE (contacto)
   const groupedBySape = useMemo(() => {
@@ -181,10 +182,20 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
     }
     if (careerFilter.length === 0) return groupedBySape;
     return groupedBySape.filter(group => {
-      const groupCareers = new Set(group.opps.map(o => o.carrera_interes));
-      return careerFilter.every(c => groupCareers.has(c));
+      if (careerMode === 'all') {
+        // Busca en carrera principal + otros intereses
+        const allInterests = new Set<string>();
+        group.opps.forEach(o => {
+          allInterests.add(o.carrera_interes);
+          if (Array.isArray(o.otros_intereses)) o.otros_intereses.forEach(i => allInterests.add(i));
+        });
+        return careerFilter.every(c => allInterests.has(c));
+      } else {
+        // Solo carrera principal
+        return group.opps.some(o => careerFilter.includes(o.carrera_interes));
+      }
     });
-  }, [groupedBySape, careerFilter, smartConditions, nlOperator]);
+  }, [groupedBySape, careerFilter, careerMode, smartConditions, nlOperator]);
 
   // Opps que se muestran (para stats)
   const displayOpps = useMemo(() => {
@@ -235,7 +246,6 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
     setProcesoFilter('');
     setFaseFilter('');
     setRasAgendadaFilter('');
-    setRasAsistioFilter('');
     setCareerFilter([]);
     setNlQuery('');
     setSmartConditions([]);
@@ -247,21 +257,43 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
     if (!query.trim()) {
       setSmartConditions([]);
       setNlOperator('AND');
+      setFilter('');
+      setFaseFilter('');
+      setRasAgendadaFilter('');
+      setCareerFilter([]);
       return;
     }
     const parsed = parseNLQuery(query);
     setSmartConditions(parsed.conditions);
     setNlOperator(parsed.operator);
 
-    if (parsed.rasAgendada !== undefined) setRasAgendadaFilter(parsed.rasAgendada ? 'true' : 'false');
-    if (parsed.rasAsistio !== undefined) setRasAsistioFilter(parsed.rasAsistio ? 'true' : 'false');
+    // Si no detectó condiciones NL, usar como búsqueda de texto (nombre/CI/mail)
+    if (parsed.conditions.length === 0 && parsed.rasAgendada === undefined) {
+      setFilter(query);
+      setFaseFilter('');
+      setRasAgendadaFilter('');
+      setCareerFilter([]);
+      return;
+    }
+
+    setFilter('');
+
+    // RAS agendada
+    if (parsed.rasAgendada !== undefined) {
+      setRasAgendadaFilter(parsed.rasAgendada ? 'true' : 'false');
+    } else {
+      setRasAgendadaFilter('');
+    }
 
     const carreras = parsed.conditions.map(c => c.carrera);
     setCareerFilter(carreras);
 
+    // Fase: primero desde condiciones, si no desde rasAgendada
     const fases = [...new Set(parsed.conditions.map(c => c.fase).filter(Boolean))];
     if (fases.length === 1 && fases[0]) {
       setFaseFilter(fases[0]);
+    } else if (parsed.rasAgendada === false) {
+      setFaseFilter(FaseOportunidad.Contactado);
     } else {
       setFaseFilter('');
     }
@@ -283,7 +315,6 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
       fase_oportunidad: formData.get('fase_oportunidad'),
       liceo_tipo: formData.get('liceo_tipo'),
       ras_agendada: formData.get('ras_agendada') === 'on',
-      ras_asistio: formData.get('ras_asistio') === 'on',
       multiple_interes: multipleInteres,
       otros_intereses: multipleInteres ? otrosIntereses.filter(c => typeof c === 'string' && c.length > 1) : [],
       comentario_extra: formData.get('comentario_extra'),
@@ -326,7 +357,6 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
               liceo: updatedOpp.liceo || '',
               fecha_lead: updatedOpp.fecha_lead || new Date().toISOString().split('T')[0],
               ras_agendada: false,
-              ras_asistio: false,
               multiple_interes: true,
               otros_intereses: [],
               comentario_extra: `[Generada desde múltiples intereses - Carrera principal: ${updatedOpp.carrera_interes}] ${updatedOpp.comentario_extra || ''}`,
@@ -423,7 +453,6 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
           liceo_tipo: LiceoTipo.Publico,
           fecha_lead: new Date().toISOString().split('T')[0],
           ras_agendada: false,
-          ras_asistio: false,
           multiple_interes: false,
           otros_intereses: [],
           comentario_extra: '',
@@ -443,7 +472,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
 
   const handleExportCSV = () => {
     if (activeOpps.length === 0) { alert('No hay datos para exportar.'); return; }
-    const headers = ['Nombre', 'CI', 'Mail', 'Carrera', 'Liceo', 'Tipo Liceo', 'Fecha Lead', 'RAS Agendada', 'RAS Asistió', 'Estado'];
+    const headers = ['Nombre', 'CI', 'Mail', 'Carrera', 'Liceo', 'Tipo Liceo', 'Fecha Lead', 'RAS Agendada', 'Estado'];
     const rows = activeOpps.map(o => [
       `"${o.nombre}"`, 
       `"${o.cedula || ''}"`, 
@@ -452,8 +481,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
       `"${o.liceo}"`, 
       `"${o.liceo_tipo}"`, 
       `"${o.fecha_lead}"`, 
-      o.ras_agendada ? 'SÍ' : 'NO', 
-      o.ras_asistio ? 'SÍ' : 'NO', 
+      o.ras_agendada ? 'SÍ' : 'NO',
       `"${o.proceso_inicio}"`
     ]);
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -506,7 +534,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
       >
         <div className="flex items-center gap-2">
           <span className="w-1.5 h-5 bg-blue-600 rounded-full"></span>
-          <span className="text-sm font-bold text-gray-900">Gráficas y KPIs</span>
+          <span className="text-sm font-bold text-gray-900">Gráficas</span>
         </div>
         <svg className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${showCharts ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
@@ -639,11 +667,12 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
         <div className="flex items-center gap-2 mb-2">
           <svg className="w-4 h-4 text-blue-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6" strokeLinecap="round"/></svg>
           <span className="text-[11px] font-black uppercase text-blue-600 tracking-wide">Búsqueda inteligente</span>
+          <button type="button" onClick={() => setShowNlInfo(true)} className="w-5 h-5 rounded-full bg-blue-100 text-blue-500 hover:bg-blue-200 flex items-center justify-center transition-colors text-xs font-black">?</button>
         </div>
         <div className="flex items-center gap-2">
           <input
             type="text"
-            placeholder='Ej: "inscriptos de UI que también tengan interés en VD"'
+            placeholder='Buscar por nombre, CI, mail o frase inteligente...'
             value={nlQuery}
             onChange={e => handleNLSearch(e.target.value)}
             className="flex-1 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-400 outline-none transition-all placeholder:text-blue-300"
@@ -651,7 +680,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
           {nlQuery && (
             <button
               type="button"
-              onClick={() => { setNlQuery(''); setSmartConditions([]); setNlOperator('AND'); setCareerFilter([]); setFaseFilter(''); }}
+              onClick={() => { setNlQuery(''); setSmartConditions([]); setNlOperator('AND'); setCareerFilter([]); setFaseFilter(''); setRasAgendadaFilter(''); setFilter(''); }}
               className="text-gray-400 hover:text-gray-700 transition-colors p-1.5 rounded-lg hover:bg-gray-100"
               title="Limpiar búsqueda inteligente"
             >
@@ -704,11 +733,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
         {showAdvancedFilters && (
           <div className="px-6 pb-6 space-y-4 border-t border-gray-100 pt-4">
             {/* Fila 1: filtros principales */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-              <div>
-                <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Nombre / CI / Mail</label>
-                <input type="text" placeholder="Buscar..." value={filter} onChange={(e) => setFilter(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               <div>
                 <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Fase</label>
                 <select value={faseFilter} onChange={(e) => setFaseFilter(e.target.value)} className={`bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold cursor-pointer ${faseFilter ? 'text-blue-700' : 'text-gray-700'}`}>
@@ -765,19 +790,30 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
                     )}
                   </div>
                 )}
+                {careerFilter.length > 1 && (
+                  <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={careerMode === 'all'}
+                      onChange={e => setCareerMode(e.target.checked ? 'all' : 'any')}
+                      className="w-3.5 h-3.5 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                    />
+                    <span className="text-[10px] font-bold text-gray-500">Contacto con estos intereses</span>
+                  </label>
+                )}
               </div>
             </div>
             {/* Fila 2: filtros secundarios */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
               <div>
-                <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Realiza RAS</label>
-                <select value={rasAsistioFilter} onChange={(e) => setRasAsistioFilter(e.target.value)} className={`bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold cursor-pointer ${rasAsistioFilter ? 'text-blue-700' : 'text-gray-700'}`}>
+                <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">RAS Agendada</label>
+                <select value={rasAgendadaFilter} onChange={(e) => setRasAgendadaFilter(e.target.value)} className={`bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold cursor-pointer ${rasAgendadaFilter ? 'text-blue-700' : 'text-gray-700'}`}>
                   <option value="">Todos</option>
-                  <option value="true">SÍ (Realizada)</option>
-                  <option value="false">NO (Pendiente)</option>
+                  <option value="true">SÍ</option>
+                  <option value="false">NO</option>
                 </select>
               </div>
-              <div className="lg:col-span-2 relative">
+              <div className="relative">
                 <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Rango de Fechas</label>
                 <button
                   type="button"
@@ -868,8 +904,12 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
                     <div className="text-sm text-gray-600 truncate">{c.mail || '—'}</div>
                   </div>
                   <div>
-                    <div className="text-[10px] font-black text-gray-400 uppercase">SAPE</div>
-                    <div className="text-sm font-bold text-indigo-600 font-mono">{c.sape || 'Sin SAPE'}</div>
+                    <div className="text-[10px] font-black text-gray-400 uppercase">Carreras</div>
+                    <div className="flex flex-wrap gap-1">
+                      {[...new Set(group.opps.map(o => o.carrera_interes))].map(car => (
+                        <span key={car} className={`text-[10px] font-black px-1.5 py-0.5 rounded ${careerFilter.length > 0 && careerFilter.includes(car) ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>{car}</span>
+                      ))}
+                    </div>
                   </div>
                 </div>
                 <div className="shrink-0 flex items-center gap-2">
@@ -895,7 +935,6 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
                         <th className="py-3 px-4">Fase</th>
                         <th className="py-3 px-4">Proceso</th>
                         <th className="py-3 px-4 text-center">RAS Agend.</th>
-                        <th className="py-3 px-4 text-center">Realiza RAS</th>
                         <th className="py-3 px-4 text-center">Liceo</th>
                         <th className="py-3 px-4 text-right">Acción</th>
                       </tr>
@@ -919,16 +958,6 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
                             <span className={`text-[10px] font-bold ${opp.ras_agendada ? 'text-blue-600' : 'text-gray-300'}`}>
                               {opp.ras_agendada ? 'SÍ' : 'NO'}
                             </span>
-                          </td>
-                          <td className="py-3 px-4 text-center">
-                            {opp.ras_asistio ? (
-                              <span className="flex items-center justify-center gap-1 text-green-600 font-bold text-[10px]">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
-                                SÍ
-                              </span>
-                            ) : (
-                              <span className="text-gray-300 font-bold text-[10px]">NO</span>
-                            )}
                           </td>
                           <td className="py-3 px-4 text-center text-[11px] font-medium text-gray-500">{opp.liceo_tipo}</td>
                           <td className="py-3 px-4 text-right">
@@ -1065,13 +1094,8 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
                           <input type="checkbox" name="ras_agendada" defaultChecked={editingOpp?.ras_agendada} className="w-5 h-5 rounded-lg border-gray-300 text-blue-600 focus:ring-blue-500" />
                           <span className="text-sm font-bold text-gray-700 group-hover:text-blue-600 transition-colors uppercase">RAS Agendada</span>
                         </label>
-                        <label className="flex items-center gap-3 cursor-pointer group">
-                          <input type="checkbox" name="ras_asistio" defaultChecked={editingOpp?.ras_asistio} className="w-5 h-5 rounded-lg border-gray-300 text-green-600 focus:ring-green-500" />
-                          <span className="text-sm font-bold text-gray-700 group-hover:text-green-600 transition-colors uppercase">Realiza RAS</span>
-                        </label>
                       </div>
                     </div>
-
                     <div>
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Comentarios de Seguimiento</label>
                       <textarea name="comentario_extra" defaultValue={editingOpp?.comentario_extra} rows={3} className="w-full border-gray-200 border rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none bg-gray-50/50"></textarea>
@@ -1142,6 +1166,49 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
             </div>
           </div>
         </>
+      )}
+
+      {/* NL Info Modal */}
+      {showNlInfo && (
+        <div className="fixed inset-0 z-[70] bg-gray-900/60 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-5 bg-blue-600 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6" strokeLinecap="round"/></svg>
+                <h3 className="text-sm font-bold uppercase tracking-wider">Búsqueda Inteligente</h3>
+              </div>
+              <button onClick={() => setShowNlInfo(false)} className="text-white/70 hover:text-white transition-colors">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-500">Escribí frases naturales para filtrar oportunidades. Ejemplos:</p>
+              <div className="space-y-2">
+                {[
+                  { phrase: 'inscriptos de UI', desc: 'Fase Inscripto + carrera UI' },
+                  { phrase: 'interesados en LV', desc: 'Fase Interesado + carrera LV' },
+                  { phrase: 'contactados de WY que también tengan interés en LT', desc: 'Carrera principal + interés secundario' },
+                  { phrase: 'evaluando GF o VD', desc: 'Fase Evaluando en cualquiera de las dos carreras' },
+                  { phrase: 'no interesados de LD', desc: 'Fase No Interesado + carrera LD' },
+                  { phrase: 'promesa de inscripción UI', desc: 'Fase Promesa + carrera UI' },
+                  { phrase: 'sin ras agendada', desc: 'Contactados sin RAS agendada' },
+                  { phrase: 'con ras agendada', desc: 'Oportunidades con RAS agendada' },
+                  { phrase: 'inscriptos de LV con ras agendada', desc: 'Combina fase, carrera y RAS' },
+                ].map((ex, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => { setShowNlInfo(false); handleNLSearch(ex.phrase); }}
+                    className="w-full text-left px-4 py-2.5 rounded-xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50/50 transition-all group"
+                  >
+                    <p className="text-sm font-bold text-blue-600 group-hover:text-blue-700">"{ex.phrase}"</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">{ex.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

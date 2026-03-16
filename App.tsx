@@ -73,7 +73,6 @@ const AppLayout: React.FC = () => {
       otros_intereses: extraData.otros_intereses || [],
       fecha_lead: lead.fecha_lead,
       ras_agendada: extraData.ras_agendada ?? false,
-      ras_asistio: false,
       multiple_interes: extraData.multiple_interes ?? false,
       liceo_tipo: extraData.liceo_tipo ?? 'Publico',
       proceso_inicio: extraData.proceso_inicio || '',
@@ -120,8 +119,8 @@ const AppLayout: React.FC = () => {
         <Route path={ROUTES.DASHBOARD} element={<Dashboard leads={leads} opportunities={opportunities} rases={rases} />} />
         <Route path={ROUTES.LEADS} element={<LeadsManager leads={leads} onAdd={handleAddLead} onUpdate={updateLead} onDelete={deleteLead} onConvert={convertToOpportunity} />} />
         <Route path={ROUTES.OPPORTUNITIES} element={<OpportunitiesManager opportunities={opportunities} onAdd={handleAddOpp} onUpdate={updateOpp} onDelete={deleteOpp} />} />
-        <Route path="/opportunities/:id" element={<OportunidadDetalle opportunities={opportunities} rases={rases} onUpdateOpp={updateOpp} onDeleteOpp={deleteOpp} onAddRas={handleAddRas} onUpdateRas={updateRas} onDeleteRas={deleteRas} />} />
-        <Route path={ROUTES.RASES} element={<RasesManager rases={rases} opportunities={opportunities} onAdd={handleAddRas} onUpdate={updateRas} onDelete={deleteRas} />} />
+        <Route path="/opportunities/:id" element={<OportunidadDetalle opportunities={opportunities} rases={rases} onUpdateOpp={updateOpp} onDeleteOpp={deleteOpp} onAddOpp={handleAddOpp} onAddRas={handleAddRas} onUpdateRas={updateRas} onDeleteRas={deleteRas} />} />
+        <Route path={ROUTES.RASES} element={<RasesManager rases={rases} opportunities={opportunities} onAdd={handleAddRas} onUpdate={updateRas} onDelete={deleteRas} onUpdateOpp={updateOpp} />} />
         <Route path={ROUTES.USUARIOS} element={<GestionUsuarios />} />
         <Route path={ROUTES.LISTAS_TRABAJO} element={<ListasTrabajo />} />
         <Route path="*" element={<Dashboard leads={leads} opportunities={opportunities} rases={rases} />} />

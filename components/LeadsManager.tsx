@@ -15,6 +15,7 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
   const [filter, setFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [monthFilter, setMonthFilter] = useState<string>(String(new Date().getMonth() + 1).padStart(2, '0'));
+  const [yearFilter, setYearFilter] = useState<string>(String(new Date().getFullYear()));
   const [showModal, setShowModal] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [leadToDelete, setLeadToDelete] = useState<Lead | null>(null);
@@ -26,8 +27,10 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
   const [desdeFilter, setDesdeFilter] = useState('');
   const [hastaFilter, setHastaFilter] = useState('');
   const [rasAgendada, setRasAgendada] = useState(false);
+  const [convertFase, setConvertFase] = useState<FaseOportunidad>(FaseOportunidad.Contactado);
   const [showCharts, setShowCharts] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
 
@@ -74,14 +77,15 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
       const s = filter.toLowerCase();
       const matchesSearch = !filter || l.nombre.toLowerCase().includes(s);
       const matchesStatus = !statusFilter || l.resultado_llamada === statusFilter;
-      const leadMonth = l.fecha_lead.split('-')[1];
+      const [leadYear, leadMonth] = l.fecha_lead.split('-');
       const matchesMonth = !monthFilter || leadMonth === monthFilter;
+      const matchesYear = !yearFilter || leadYear === yearFilter;
       const matchesCarrera = !carreraFilter || l.carrera_interes === carreraFilter;
       const matchesDesde = !desdeFilter || l.fecha_lead >= desdeFilter;
       const matchesHasta = !hastaFilter || l.fecha_lead <= hastaFilter;
-      return matchesSearch && matchesStatus && matchesMonth && matchesCarrera && matchesDesde && matchesHasta;
+      return matchesSearch && matchesStatus && matchesMonth && matchesYear && matchesCarrera && matchesDesde && matchesHasta;
     });
-  }, [leads, filter, statusFilter, monthFilter, carreraFilter, desdeFilter, hastaFilter]);
+  }, [leads, filter, statusFilter, monthFilter, yearFilter, carreraFilter, desdeFilter, hastaFilter]);
 
   const stats = useMemo(() => {
     const total = activeLeads.length;
@@ -95,13 +99,13 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
       activeLeads.forEach(l => {
         careerMap[l.carrera_interes] = (careerMap[l.carrera_interes] || 0) + 1;
       });
-      chartData = Object.entries(careerMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+      chartData = Object.entries(careerMap).map(([name, value]) => ({ name, value })).filter(d => d.value > 0).sort((a, b) => b.value - a.value);
     } else {
       chartTitle = "Distribución por Resultado de Llamada";
       chartData = Object.values(ResultadoLlamada).map(res => ({
         name: res,
         value: activeLeads.filter(l => l.resultado_llamada === res).length
-      })).sort((a, b) => b.value - a.value);
+      })).filter(d => d.value > 0).sort((a, b) => b.value - a.value);
     }
 
     return { total, contactados, chartData, chartTitle };
@@ -227,6 +231,9 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
         await onAdd(newLeadData);
       }
       closeModal();
+    } catch (err: any) {
+      console.error('Error al guardar lead:', err);
+      alert('Error al guardar: ' + (err?.message || 'Error desconocido'));
     } finally {
       setIsSubmitting(false);
     }
@@ -248,7 +255,7 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
       >
         <div className="flex items-center gap-2">
           <span className="w-1.5 h-5 bg-blue-600 rounded-full"></span>
-          <span className="text-sm font-bold text-gray-900">Gráficas y KPIs</span>
+          <span className="text-sm font-bold text-gray-900">Gráficas</span>
         </div>
         <svg className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${showCharts ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
@@ -317,10 +324,18 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
             onChange={(e) => setFilter(e.target.value)}
             className="w-full sm:w-52 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm bg-white"
           />
-          <div className="relative w-full sm:w-40">
+          <div className="relative w-full sm:w-36">
              <select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm appearance-none bg-white">
               <option value="">Todos los Meses</option>
               {MESES.map(m => <option key={m.val} value={m.val}>{m.name}</option>)}
+            </select>
+          </div>
+          <div className="relative w-full sm:w-28">
+            <select value={yearFilter} onChange={(e) => setYearFilter(e.target.value)} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm appearance-none bg-white">
+              <option value="">Año</option>
+              {Array.from({ length: 8 }, (_, i) => String(2023 + i)).map(y => (
+                <option key={y} value={y}>{y}</option>
+              ))}
             </select>
           </div>
           <div className="relative w-full sm:w-48">
@@ -368,8 +383,8 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
               </div>
             )}
           </div>
-          {(filter || statusFilter || monthFilter || carreraFilter || desdeFilter || hastaFilter) && (
-            <button onClick={() => { setFilter(''); setStatusFilter(''); setMonthFilter(''); setCarreraFilter(''); setDesdeFilter(''); setHastaFilter(''); }} className="w-full sm:w-auto text-gray-400 hover:text-red-500 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors active:scale-95 whitespace-nowrap">
+          {(filter || statusFilter || monthFilter || yearFilter || carreraFilter || desdeFilter || hastaFilter) && (
+            <button onClick={() => { setFilter(''); setStatusFilter(''); setMonthFilter(''); setYearFilter(''); setCarreraFilter(''); setDesdeFilter(''); setHastaFilter(''); }} className="w-full sm:w-auto text-gray-400 hover:text-red-500 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors active:scale-95 whitespace-nowrap">
               Reiniciar filtros
             </button>
           )}
@@ -425,7 +440,7 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden overflow-x-auto">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
         <table className="w-full text-left">
           <thead className="bg-gray-50 text-gray-500 text-[10px] font-black uppercase tracking-widest">
             <tr>
@@ -463,39 +478,25 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
                           Convertido
                         </span>
                       ) : (
-                        <button onClick={() => { setShowConvertModal(l); setRasAgendada(false); }} className="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-[10px] font-black uppercase shadow-sm hover:bg-blue-700 transition-colors">
+                        <button onClick={() => { setShowConvertModal(l); setRasAgendada(false); setConvertFase(FaseOportunidad.Contactado); }} className="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-[10px] font-black uppercase shadow-sm hover:bg-blue-700 transition-colors">
                           Convertir
                         </button>
                       )}
-                      <div className="relative">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === l.lead_id ? null : l.lead_id); }}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all"
-                        >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
-                        </button>
-                        {openMenuId === l.lead_id && (
-                          <>
-                            <div className="fixed inset-0 z-40" onClick={() => setOpenMenuId(null)} />
-                            <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-36 animate-in zoom-in-95 duration-150">
-                              <button
-                                onClick={() => { openEditModal(l); setOpenMenuId(null); }}
-                                className="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
-                              >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                                Editar
-                              </button>
-                              <button
-                                onClick={() => { setLeadToDelete(l); setOpenMenuId(null); }}
-                                className="w-full text-left px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
-                              >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                                Eliminar
-                              </button>
-                            </div>
-                          </>
-                        )}
-                      </div>
+                      <button
+                        ref={el => { if (el && openMenuId === l.lead_id) el.dataset.menuAnchor = 'true'; }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (openMenuId === l.lead_id) { setOpenMenuId(null); setMenuPos(null); }
+                          else {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            setMenuPos({ top: rect.bottom + 4, left: rect.right - 144 });
+                            setOpenMenuId(l.lead_id);
+                          }
+                        }}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -511,6 +512,32 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
         </table>
       </div>
       </div>
+
+      {openMenuId && menuPos && (() => {
+        const menuLead = leads.find(l => l.lead_id === openMenuId);
+        if (!menuLead) return null;
+        return (
+          <>
+            <div className="fixed inset-0 z-[60]" onClick={() => { setOpenMenuId(null); setMenuPos(null); }} />
+            <div className="fixed z-[70] bg-white border border-gray-200 rounded-xl shadow-xl py-1 w-36 animate-in zoom-in-95 duration-150" style={{ top: menuPos.top, left: menuPos.left }}>
+              <button
+                onClick={() => { openEditModal(menuLead); setOpenMenuId(null); setMenuPos(null); }}
+                className="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                Editar
+              </button>
+              <button
+                onClick={() => { setLeadToDelete(menuLead); setOpenMenuId(null); setMenuPos(null); }}
+                className="w-full text-left px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                Eliminar
+              </button>
+            </div>
+          </>
+        );
+      })()}
 
       {showModal && (
         <>
@@ -664,7 +691,7 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
                     </div>
                     <div className="bg-gray-50 p-4 rounded-xl space-y-4 border border-gray-100">
                       <label className="flex items-center gap-3 cursor-pointer group">
-                        <input type="checkbox" checked={rasAgendada} onChange={(e) => setRasAgendada(e.target.checked)} className="w-5 h-5 rounded border-gray-300 text-blue-600" />
+                        <input type="checkbox" checked={rasAgendada} onChange={(e) => { setRasAgendada(e.target.checked); setConvertFase(e.target.checked ? FaseOportunidad.Interesado : FaseOportunidad.Contactado); }} className="w-5 h-5 rounded border-gray-300 text-blue-600" />
                         <span className="text-sm font-bold group-hover:text-blue-600 uppercase transition-colors">Agendar Reunión (RAS)</span>
                       </label>
                       {rasAgendada && (
@@ -681,14 +708,14 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
                     <div className="grid grid-cols-3 gap-4">
                       <div>
                         <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Proceso Inicio</label>
-                        <select name="proceso_inicio" className="w-full border-gray-200 border rounded-lg px-3 py-2 text-sm font-bold">
+                        <select name="proceso_inicio" defaultValue={(() => { const m = new Date().getMonth() + 1, y = new Date().getFullYear(); if (m >= 9) return `Marzo ${y+1}`; if (m >= 4) return `Agosto ${y}`; return `Marzo ${y}`; })()} className="w-full border-gray-200 border rounded-lg px-3 py-2 text-sm font-bold">
                            <option value="">Seleccionar...</option>
                            {[2023,2024,2025,2026,2027,2028,2029,2030].flatMap(y => [`Marzo ${y}`, `Agosto ${y}`]).map(p => <option key={p} value={p}>{p}</option>)}
                         </select>
                       </div>
                       <div>
                         <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Fase</label>
-                        <select name="fase_oportunidad" className="w-full border-gray-200 border rounded-lg px-3 py-2 text-sm font-bold">
+                        <select name="fase_oportunidad" value={convertFase} onChange={e => setConvertFase(e.target.value as FaseOportunidad)} className="w-full border-gray-200 border rounded-lg px-3 py-2 text-sm font-bold">
                            {Object.values(FaseOportunidad).map(f => <option key={f} value={f}>{f}</option>)}
                         </select>
                       </div>

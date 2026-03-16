@@ -101,7 +101,7 @@ const ListasTrabajo: React.FC = () => {
       .select('*')
       .order('created_at', { ascending: false });
     if (error) {
-      setError('Error al cargar los registros');
+      setError('Error al cargar los registros: ' + error.message);
     } else {
       setItems(data as ListaDeTrabajoItem[]);
     }

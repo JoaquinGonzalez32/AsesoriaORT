@@ -10,6 +10,7 @@ interface RasesManagerProps {
   onAdd?: (ras: any) => void;
   onUpdate: (id: string, data: any) => void;
   onDelete: (id: string) => void;
+  onUpdateOpp?: (updated: Oportunidad) => Promise<void>;
 }
 
 const AGENTES_RAS = [
@@ -20,9 +21,19 @@ const AGENTES_RAS = [
 
 const CARRERAS = ['LV', 'WY', 'LT', 'LD', 'YN', 'LG', 'VD', 'UI', 'GF', 'WE'];
 
-const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd, onUpdate, onDelete }) => {
+const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd, onUpdate, onDelete, onUpdateOpp }) => {
   const navigateToOpp = useNavigate();
   const [filter, setFilter] = useState('');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [oppSearch, setOppSearch] = useState('');
+  const [selectedOpp, setSelectedOpp] = useState<Oportunidad | null>(null);
+  const [addSaving, setAddSaving] = useState(false);
+  const [newRasForm, setNewRasForm] = useState({
+    titulo: '',
+    agente_nombre: '',
+    fecha_hora: '',
+    modalidad: ModalidadRAS.Presencial as ModalidadRAS,
+  });
   const [tituloFilter, setTituloFilter] = useState('');
   const [agenteFilter, setAgenteFilter] = useState('');
   const [modalidadFilter, setModalidadFilter] = useState('');
@@ -161,6 +172,59 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
     reader.readAsText(file);
   };
 
+  const availableOpps = useMemo(() => {
+    return opportunities.filter(o => !o.deleted_at && !o.ras_agendada);
+  }, [opportunities]);
+
+  const filteredOpps = useMemo(() => {
+    if (!oppSearch.trim()) return availableOpps.slice(0, 10);
+    const s = oppSearch.toLowerCase();
+    return availableOpps.filter(o =>
+      o.nombre.toLowerCase().includes(s) ||
+      (o.nombre_trato && o.nombre_trato.toLowerCase().includes(s)) ||
+      o.carrera_interes.toLowerCase().includes(s)
+    ).slice(0, 10);
+  }, [availableOpps, oppSearch]);
+
+  const openAddModal = () => {
+    setShowAddModal(true);
+    setSelectedOpp(null);
+    setOppSearch('');
+    setNewRasForm({ titulo: '', agente_nombre: '', fecha_hora: '', modalidad: ModalidadRAS.Presencial });
+  };
+
+  const selectOpp = (opp: Oportunidad) => {
+    setSelectedOpp(opp);
+    setOppSearch('');
+    setNewRasForm(prev => ({ ...prev, titulo: `RAS - ${opp.nombre}` }));
+  };
+
+  const handleAddRas = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedOpp || !onAdd || !newRasForm.agente_nombre || !newRasForm.fecha_hora) return;
+    setAddSaving(true);
+    try {
+      await onAdd({
+        opp_id: selectedOpp.opp_id,
+        titulo: newRasForm.titulo,
+        nombre_interesado: selectedOpp.nombre,
+        agente_nombre: newRasForm.agente_nombre,
+        fecha_hora: newRasForm.fecha_hora,
+        modalidad: newRasForm.modalidad,
+        carrera: selectedOpp.carrera_interes,
+        estado_oportunidad: selectedOpp.proceso_inicio,
+      });
+      if (onUpdateOpp) {
+        await onUpdateOpp({ ...selectedOpp, ras_agendada: true, updated_at: new Date().toISOString() });
+      }
+      setShowAddModal(false);
+    } catch (err) {
+      console.error('Error creating RAS:', err);
+    } finally {
+      setAddSaving(false);
+    }
+  };
+
   const confirmDelete = () => {
     if (rasToDelete) {
       onDelete(rasToDelete.ras_id);
@@ -227,6 +291,15 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
           >
             Importar CSV
           </button>
+          {onAdd && (
+            <button
+              onClick={openAddModal}
+              className="bg-green-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-green-700 transition-all flex items-center gap-2 active:scale-95"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Agendar RAS
+            </button>
+          )}
         </div>
       </div>
 
@@ -238,7 +311,7 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
       >
         <div className="flex items-center gap-2">
           <span className="w-1.5 h-5 bg-blue-600 rounded-full"></span>
-          <span className="text-sm font-bold text-gray-900">Gráficas y KPIs</span>
+          <span className="text-sm font-bold text-gray-900">Gráficas</span>
         </div>
         <svg className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${showCharts ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
@@ -458,49 +531,43 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
           <p className="text-gray-400 font-medium">No hay reuniones agendadas que coincidan.</p>
         </div>
       ) : viewMode === 'cards' ? (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {activeRases.map((ras) => (
-            <div key={ras.ras_id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow group flex flex-col">
-              <div className="bg-blue-600 p-4 text-white">
-                <div className="flex justify-between items-start mb-2">
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+            <div key={ras.ras_id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow group flex flex-col">
+              <div className="bg-blue-600 px-3 py-2.5 text-white">
+                <div className="flex justify-between items-center mb-1">
+                  <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
                     ras.modalidad === ModalidadRAS.Presencial ? 'bg-white text-blue-600' : 'bg-blue-400 text-white'
                   }`}>
                     {ras.modalidad}
                   </span>
-                  <span className="text-[10px] font-bold opacity-80">
+                  <span className="text-[9px] font-bold opacity-80">
                     {new Date(ras.fecha_hora).toLocaleDateString('es-ES')}
                   </span>
                 </div>
-                <h3 className="font-bold text-sm leading-tight line-clamp-2 min-h-[2.5rem]">{ras.titulo}</h3>
+                <h3 className="font-bold text-xs leading-tight line-clamp-2">{ras.titulo}</h3>
               </div>
-              <div className="p-5 space-y-4 flex-1">
-                <div className="grid grid-cols-2 gap-4 text-xs font-bold text-gray-800">
+              <div className="p-3 space-y-2 flex-1">
+                <div className="grid grid-cols-2 gap-2 text-[11px] font-bold text-gray-800">
                   <p>
-                    <span className="text-[9px] font-black text-gray-400 block uppercase tracking-wider mb-0.5">Interesado</span>
+                    <span className="text-[8px] font-black text-gray-400 block uppercase tracking-wider">Interesado</span>
                     {ras.nombre_interesado}
                   </p>
                   <p>
-                    <span className="text-[9px] font-black text-gray-400 block uppercase tracking-wider mb-0.5">¿Quien hace RAS?</span>
+                    <span className="text-[8px] font-black text-gray-400 block uppercase tracking-wider">Agente</span>
                     {ras.agente_nombre}
                   </p>
                 </div>
-                <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap">
                   {ras.carrera && (
-                    <div>
-                      <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider">Carrera</span>
-                      <span className="ml-2 text-xs font-black text-purple-600">{ras.carrera}</span>
-                    </div>
+                    <span className="text-[10px] font-black text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">{ras.carrera}</span>
                   )}
                   {oppFaseMap[ras.opp_id] && (
-                    <div>
-                      <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider">Fase</span>
-                      <span className={`ml-2 px-2 py-0.5 rounded text-[10px] font-black ${FASE_STYLE[oppFaseMap[ras.opp_id]] || 'bg-gray-100 text-gray-600'}`}>{oppFaseMap[ras.opp_id]}</span>
-                    </div>
+                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-black ${FASE_STYLE[oppFaseMap[ras.opp_id]] || 'bg-gray-100 text-gray-600'}`}>{oppFaseMap[ras.opp_id]}</span>
                   )}
                 </div>
-                <div className="pt-4 border-t border-gray-50 flex items-center justify-end gap-4">
-                  {ras.opp_id && (
+                {ras.opp_id && (
+                <div className="pt-4 border-t border-gray-50 flex items-center justify-end">
                     <button
                       onClick={() => navigateToOpp(`/opportunities/${ras.opp_id}`)}
                       className="text-gray-400 hover:text-purple-600 transition-colors flex items-center gap-1 font-bold text-[10px] uppercase tracking-widest"
@@ -508,22 +575,8 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
                       Ver Opp
                     </button>
-                  )}
-                  <button
-                    onClick={() => setRasToEdit(ras)}
-                    className="text-gray-400 hover:text-blue-600 transition-colors flex items-center gap-1 font-bold text-[10px] uppercase tracking-widest"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                    Editar
-                  </button>
-                  <button
-                    onClick={() => setRasToDelete(ras)}
-                    className="text-gray-400 hover:text-red-500 transition-colors flex items-center gap-1 font-bold text-[10px] uppercase tracking-widest"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                    Eliminar
-                  </button>
                 </div>
+                )}
               </div>
             </div>
           ))}
@@ -565,31 +618,15 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
                     ) : '—'}
                   </td>
                   <td className="px-5 py-3 text-right">
-                    <div className="flex items-center justify-end gap-3">
-                      {ras.opp_id && (
-                        <button
-                          onClick={() => navigateToOpp(`/opportunities/${ras.opp_id}`)}
-                          className="text-gray-400 hover:text-purple-600 transition-colors"
-                          title="Ver Oportunidad"
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
-                        </button>
-                      )}
+                    {ras.opp_id && (
                       <button
-                        onClick={() => setRasToEdit(ras)}
-                        className="text-gray-400 hover:text-blue-600 transition-colors"
-                        title="Editar"
+                        onClick={() => navigateToOpp(`/opportunities/${ras.opp_id}`)}
+                        className="text-gray-400 hover:text-purple-600 transition-colors"
+                        title="Ver Oportunidad"
                       >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
                       </button>
-                      <button
-                        onClick={() => setRasToDelete(ras)}
-                        className="text-gray-400 hover:text-red-500 transition-colors"
-                        title="Eliminar"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                      </button>
-                    </div>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -650,6 +687,137 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
                 </button>
                 <button type="submit" className="flex-1 px-8 py-3 bg-blue-600 text-white text-sm font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-blue-200 hover:bg-blue-700 hover:shadow-xl hover:-translate-y-0.5 active:scale-95 transition-all">
                   Guardar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add RAS Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md flex items-center justify-center z-[70] p-4 animate-in fade-in duration-300">
+          <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+            <form onSubmit={handleAddRas}>
+              <div className="p-8">
+                <h3 className="text-xl font-bold text-gray-900 mb-6 tracking-tight">Agendar RAS</h3>
+                <div className="space-y-4">
+                  {/* Opportunity Search */}
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Oportunidad</label>
+                    {selectedOpp ? (
+                      <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center justify-between">
+                        <div>
+                          <span className="text-sm font-bold text-gray-900">{selectedOpp.nombre}</span>
+                          <span className="text-xs text-gray-500 ml-2">({selectedOpp.carrera_interes})</span>
+                          {selectedOpp.nombre_trato && (
+                            <p className="text-[10px] text-gray-400 mt-0.5 truncate">{selectedOpp.nombre_trato}</p>
+                          )}
+                        </div>
+                        <button type="button" onClick={() => setSelectedOpp(null)} className="text-gray-400 hover:text-red-500 transition-colors">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder="Buscar por nombre, trato o carrera..."
+                          value={oppSearch}
+                          onChange={e => setOppSearch(e.target.value)}
+                          className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full focus:ring-2 focus:ring-green-500 outline-none"
+                          autoFocus
+                        />
+                        {filteredOpps.length > 0 && (
+                          <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-xl max-h-48 overflow-y-auto">
+                            {filteredOpps.map(o => (
+                              <button
+                                key={o.opp_id}
+                                type="button"
+                                onClick={() => selectOpp(o)}
+                                className="w-full text-left px-4 py-2.5 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
+                              >
+                                <span className="text-sm font-bold text-gray-900">{o.nombre}</span>
+                                <span className="text-xs text-purple-600 font-bold ml-2">{o.carrera_interes}</span>
+                                {o.nombre_trato && (
+                                  <p className="text-[10px] text-gray-400 truncate">{o.nombre_trato}</p>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {oppSearch && filteredOpps.length === 0 && (
+                          <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-xl px-4 py-3 text-sm text-gray-400">
+                            No se encontraron oportunidades sin RAS
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {/* Form fields */}
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Título</label>
+                    <input
+                      value={newRasForm.titulo}
+                      onChange={e => setNewRasForm(p => ({ ...p, titulo: e.target.value }))}
+                      required
+                      className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full focus:ring-2 focus:ring-green-500 outline-none font-bold"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Quien hace RAS</label>
+                      <select
+                        value={newRasForm.agente_nombre}
+                        onChange={e => {
+                          const agente = e.target.value;
+                          setNewRasForm(p => ({
+                            ...p,
+                            agente_nombre: agente,
+                            titulo: selectedOpp ? `RAS - ${selectedOpp.nombre} - ${agente}` : p.titulo,
+                          }));
+                        }}
+                        required
+                        className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold cursor-pointer"
+                      >
+                        <option value="">Seleccionar...</option>
+                        {AGENTES_RAS.map(a => <option key={a} value={a}>{a}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Modalidad</label>
+                      <select
+                        value={newRasForm.modalidad}
+                        onChange={e => setNewRasForm(p => ({ ...p, modalidad: e.target.value as ModalidadRAS }))}
+                        className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold cursor-pointer"
+                      >
+                        {Object.values(ModalidadRAS).map(m => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Fecha y Hora</label>
+                    <input
+                      type="datetime-local"
+                      value={newRasForm.fecha_hora}
+                      onChange={e => setNewRasForm(p => ({ ...p, fecha_hora: e.target.value }))}
+                      step={1800}
+                      required
+                      className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full focus:ring-2 focus:ring-green-500 outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="bg-gray-50/80 px-8 py-6 flex flex-col sm:flex-row gap-3">
+                <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 px-6 py-3 text-sm font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-200/50 rounded-2xl transition-all">
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={!selectedOpp || addSaving}
+                  className="flex-1 px-8 py-3 bg-green-600 text-white text-sm font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-green-200 hover:bg-green-700 hover:shadow-xl hover:-translate-y-0.5 active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none"
+                >
+                  {addSaving ? 'Guardando...' : 'Agendar'}
                 </button>
               </div>
             </form>

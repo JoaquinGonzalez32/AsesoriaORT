@@ -75,7 +75,12 @@ const GestionUsuarios: React.FC = () => {
     setSuccess(null);
     setSubmitting(true);
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      console.log('Session:', token ? 'Activa' : 'Sin sesión');
+      if (!token) throw new Error('No hay sesión activa. Cerrá sesión y volvé a ingresar.');
       const { data, error } = await supabase.functions.invoke('create-user', {
+        headers: { Authorization: `Bearer ${token}` },
         body: {
           email: newEmail,
           password: newPassword,

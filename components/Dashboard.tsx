@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, LabelList } from 'recharts';
-import { Lead, Oportunidad, RAS, ResultadoLlamada, FaseOportunidad, ModalidadRAS } from '../types';
+import { Lead, Oportunidad, RAS, ResultadoLlamada, ResultadoRAS, FaseOportunidad, ModalidadRAS } from '../types';
 import { exportChartsAsImage, exportChartsAsCSV, ChartData } from '../lib/exportChart';
 
 interface DashboardProps {
@@ -50,19 +50,37 @@ const CARRERA_HEX: Record<string, string> = {
 };
 
 const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) => {
+  // ---- Global vs Month toggle ----
+  const [globalView, setGlobalView] = useState<'general' | 'mes'>('general');
+  const now = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(String(now.getMonth() + 1).padStart(2, '0'));
+  const [selectedYear, setSelectedYear] = useState(String(now.getFullYear()));
+  const filterYearMonth = `${selectedYear}-${selectedMonth}`;
+
   // ---- Global KPI (no filters) ----
   const activeLeads = useMemo(() => leads.filter(l => !l.deleted_at), [leads]);
   const activeOpps = useMemo(() => opportunities.filter(o => !o.deleted_at), [opportunities]);
+  const activeRasesAll = useMemo(() => (rases || []).filter(r => !r.deleted_at), [rases]);
+
+  const kpiLeads = useMemo(() => {
+    if (globalView === 'general') return activeLeads;
+    return activeLeads.filter(l => l.fecha_lead.slice(0, 7) === filterYearMonth);
+  }, [activeLeads, globalView, filterYearMonth]);
+
+  const kpiOpps = useMemo(() => {
+    if (globalView === 'general') return activeOpps;
+    return activeOpps.filter(o => o.created_at && o.created_at.slice(0, 7) === filterYearMonth);
+  }, [activeOpps, globalView, filterYearMonth]);
 
   const globalStats = useMemo(() => ({
-    totalLeads: activeLeads.length,
-    primerContacto: activeLeads.filter(l => l.resultado_llamada === ResultadoLlamada.PrimerContacto).length,
-    contactados: activeLeads.filter(l => l.resultado_llamada === ResultadoLlamada.Contactado).length,
-    interesados: activeLeads.filter(l => l.resultado_llamada === ResultadoLlamada.Interesado).length,
-    totalOpps: activeOpps.length,
-    rasAgendadas: activeOpps.filter(o => o.ras_agendada).length,
-    rasAsistidas: activeOpps.filter(o => o.ras_asistio).length,
-  }), [activeLeads, activeOpps]);
+    totalLeads: kpiLeads.length,
+    primerContacto: kpiLeads.filter(l => l.resultado_llamada === ResultadoLlamada.PrimerContacto).length,
+    contactados: kpiLeads.filter(l => l.resultado_llamada === ResultadoLlamada.Contactado).length,
+    interesados: kpiLeads.filter(l => l.resultado_llamada === ResultadoLlamada.Interesado).length,
+    totalOpps: kpiOpps.length,
+    rasAgendadas: kpiOpps.filter(o => o.ras_agendada).length,
+    rasRealizadas: activeRasesAll.filter(r => r.resultado_ras === ResultadoRAS.Realizada).length,
+  }), [kpiLeads, kpiOpps, activeRasesAll]);
 
   const funnelData = [
     { name: 'Nuevos (1er C)', value: globalStats.primerContacto, color: '#3b82f6' },
@@ -230,6 +248,45 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) =>
           <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">Panel de Asesoría</h2>
           <p className="text-gray-500 mt-1 font-medium">Control en tiempo real del embudo comercial</p>
         </div>
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Período de datos</span>
+          <div className="flex items-center bg-gray-100 rounded-xl p-1">
+            <button
+              type="button"
+              onClick={() => setGlobalView('general')}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${globalView === 'general' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              General
+            </button>
+            <button
+              type="button"
+              onClick={() => setGlobalView('mes')}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${globalView === 'mes' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Mensual
+            </button>
+          </div>
+          {globalView === 'mes' && (
+            <div className="flex items-center gap-1.5">
+              <select
+                value={selectedMonth}
+                onChange={e => setSelectedMonth(e.target.value)}
+                className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold cursor-pointer focus:ring-2 focus:ring-blue-500 outline-none"
+              >
+                {MESES.map(m => <option key={m.val} value={m.val}>{m.name}</option>)}
+              </select>
+              <select
+                value={selectedYear}
+                onChange={e => setSelectedYear(e.target.value)}
+                className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold cursor-pointer focus:ring-2 focus:ring-blue-500 outline-none"
+              >
+                {Array.from({ length: 8 }, (_, i) => String(2023 + i)).map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ============= GLOBAL KPI CARDS (grouped by funnel stage) ============= */}
@@ -244,19 +301,12 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) =>
             <StatCard title="Interesados" value={globalStats.interesados} sub="Calificados" iconColor="bg-yellow-500" />
           </div>
         </div>
-        {/* Conversión */}
-        <div className="xl:w-[160px] bg-purple-50/40 rounded-2xl p-3 border border-purple-100/60">
-          <p className="text-[9px] font-black uppercase tracking-widest text-purple-400 mb-2 px-1">Conversión</p>
-          <div className="grid grid-cols-1 gap-3">
-            <StatCard title="Opps" value={globalStats.totalOpps} sub="Ventas" iconColor="bg-purple-500" highlight />
-          </div>
-        </div>
         {/* Cierre */}
         <div className="xl:w-[320px] bg-green-50/40 rounded-2xl p-3 border border-green-100/60">
           <p className="text-[9px] font-black uppercase tracking-widest text-green-500 mb-2 px-1">Cierre</p>
           <div className="grid grid-cols-2 gap-3">
             <StatCard title="RAS Agend." value={globalStats.rasAgendadas} sub="Agendados" iconColor="bg-indigo-500" />
-            <StatCard title="RAS Asist." value={globalStats.rasAsistidas} sub="Cierres" iconColor="bg-green-500" highlight />
+            <StatCard title="Result. RAS" value={globalStats.rasRealizadas} sub="Cierres" iconColor="bg-green-500" highlight />
           </div>
         </div>
       </div>
@@ -292,11 +342,11 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) =>
             Top Carreras por Interés
           </h3>
           <div className="space-y-5">
-            {Array.from(new Set(activeLeads.map(l => l.carrera_interes))).filter(Boolean)
-              .map(carrera => ({ carrera, count: activeLeads.filter(l => l.carrera_interes === carrera).length }))
+            {Array.from(new Set(kpiLeads.map(l => l.carrera_interes))).filter(Boolean)
+              .map(carrera => ({ carrera, count: kpiLeads.filter(l => l.carrera_interes === carrera).length }))
               .sort((a, b) => b.count - a.count)
               .slice(0, 6).map(({ carrera, count }, idx) => {
-              const percentage = Math.round((count / activeLeads.length) * 100) || 0;
+              const percentage = Math.round((count / kpiLeads.length) * 100) || 0;
               const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-pink-500', 'bg-sky-500'];
               return (
                 <div key={carrera} className="group">
@@ -310,7 +360,7 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) =>
                 </div>
               );
             })}
-            {activeLeads.length === 0 && (
+            {kpiLeads.length === 0 && (
               <div className="py-10 text-center text-gray-400 italic">No hay datos de carreras registrados</div>
             )}
           </div>
