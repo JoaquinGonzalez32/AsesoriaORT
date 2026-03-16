@@ -311,12 +311,65 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
       </div>
       )}
 
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Gestión de Leads</h2>
-          <p className="text-sm text-gray-500">Administra los prospectos entrantes</p>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="shrink-0">
+            <h2 className="text-2xl font-bold text-gray-900">Gestión de Leads</h2>
+            <p className="text-sm text-gray-500">Administra los prospectos entrantes</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <input type="file" ref={fileInputRef} onChange={handleImportCSV} accept=".csv" className="hidden" />
+            <div className="relative">
+              <button
+                onClick={() => setShowActionsMenu(p => !p)}
+                className="bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl font-bold shadow-sm hover:bg-gray-50 transition-all text-sm active:scale-95 flex items-center gap-2"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+              </button>
+              {showActionsMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowActionsMenu(false)} />
+                  <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-44 animate-in zoom-in-95 duration-150">
+                    <button
+                      onClick={() => {
+                        const charts: ChartData[] = [{ title: stats.chartTitle, data: stats.chartData.map((d, i) => ({ ...d, color: RESULTADO_HEX[d.name] || (i % 2 === 0 ? '#2563eb' : '#93c5fd') })), type: 'bar-horizontal' }];
+                        exportChartsAsImage(charts, 'leads_graficas');
+                        setShowActionsMenu(false);
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      Exportar Imagen
+                    </button>
+                    <button
+                      onClick={() => {
+                        const charts: ChartData[] = [{ title: stats.chartTitle, data: stats.chartData, type: 'bar-horizontal' }];
+                        exportChartsAsCSV(charts, 'leads_datos');
+                        setShowActionsMenu(false);
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                      Exportar CSV
+                    </button>
+                    <div className="border-t border-gray-100 my-1" />
+                    <button
+                      onClick={() => { fileInputRef.current?.click(); setShowActionsMenu(false); }}
+                      className="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      Importar CSV
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+            <button onClick={openCreateModal} className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg hover:bg-blue-700 transition-all active:scale-95 whitespace-nowrap">
+              + Nuevo Lead
+            </button>
+          </div>
         </div>
-        <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-3">
           <input
             type="text"
             placeholder="Buscar por nombre..."
@@ -384,59 +437,10 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
             )}
           </div>
           {(filter || statusFilter || monthFilter || yearFilter || carreraFilter || desdeFilter || hastaFilter) && (
-            <button onClick={() => { setFilter(''); setStatusFilter(''); setMonthFilter(''); setYearFilter(''); setCarreraFilter(''); setDesdeFilter(''); setHastaFilter(''); }} className="w-full sm:w-auto text-gray-400 hover:text-red-500 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors active:scale-95 whitespace-nowrap">
+            <button onClick={() => { setFilter(''); setStatusFilter(''); setMonthFilter(''); setYearFilter(''); setCarreraFilter(''); setDesdeFilter(''); setHastaFilter(''); }} className="text-gray-400 hover:text-red-500 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors active:scale-95 whitespace-nowrap">
               Reiniciar filtros
             </button>
           )}
-          <input type="file" ref={fileInputRef} onChange={handleImportCSV} accept=".csv" className="hidden" />
-          <div className="relative">
-            <button
-              onClick={() => setShowActionsMenu(p => !p)}
-              className="w-full sm:w-auto bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl font-bold shadow-sm hover:bg-gray-50 transition-all text-sm active:scale-95 flex items-center gap-2"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
-            </button>
-            {showActionsMenu && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowActionsMenu(false)} />
-                <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-44 animate-in zoom-in-95 duration-150">
-                  <button
-                    onClick={() => {
-                      const charts: ChartData[] = [{ title: stats.chartTitle, data: stats.chartData.map((d, i) => ({ ...d, color: RESULTADO_HEX[d.name] || (i % 2 === 0 ? '#2563eb' : '#93c5fd') })), type: 'bar-horizontal' }];
-                      exportChartsAsImage(charts, 'leads_graficas');
-                      setShowActionsMenu(false);
-                    }}
-                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    Exportar Imagen
-                  </button>
-                  <button
-                    onClick={() => {
-                      const charts: ChartData[] = [{ title: stats.chartTitle, data: stats.chartData, type: 'bar-horizontal' }];
-                      exportChartsAsCSV(charts, 'leads_datos');
-                      setShowActionsMenu(false);
-                    }}
-                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                    Exportar CSV
-                  </button>
-                  <div className="border-t border-gray-100 my-1" />
-                  <button
-                    onClick={() => { fileInputRef.current?.click(); setShowActionsMenu(false); }}
-                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    Importar CSV
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-          <button onClick={openCreateModal} className="w-full sm:w-auto bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg hover:bg-blue-700 transition-all active:scale-95 whitespace-nowrap">
-            + Nuevo Lead
-          </button>
         </div>
       </div>
 
