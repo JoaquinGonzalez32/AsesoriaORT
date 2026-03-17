@@ -104,7 +104,7 @@ const AppLayout: React.FC = () => {
 
   const userInitials = profile
     ? `${(profile.nombre || '')[0] || ''}${(profile.apellido || '')[0] || ''}`.toUpperCase()
-    : '?';
+    : null;
 
   const rolBadgeColor: Record<string, string> = {
     admin: 'bg-red-500/20 text-red-200',
@@ -160,7 +160,7 @@ const AppLayout: React.FC = () => {
             className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-blue-800 transition-all duration-200"
           >
             <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold">
-              {userInitials}
+              {userInitials || <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
             </div>
             <div className="hidden md:flex flex-col items-start">
               <span className="text-sm font-medium leading-tight">{profile?.nombre} {profile?.apellido}</span>

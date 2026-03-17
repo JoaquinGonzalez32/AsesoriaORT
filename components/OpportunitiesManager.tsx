@@ -5,6 +5,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelL
 import { exportChartsAsImage, exportChartsAsCSV, ChartData } from '../lib/exportChart';
 import { parseNLQuery, SmartCondition, NLOperator } from '../lib/nlParser';
 import { supabase } from '../lib/supabase';
+import InfoTooltip from './InfoTooltip';
 
 class OppErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: string | null }> {
   state = { error: null as string | null };
@@ -65,6 +66,29 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
   const careerDropdownRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Inline add opp for contact
+  const [addingForContact, setAddingForContact] = useState<string | null>(null);
+  const [inlineNewCarrera, setInlineNewCarrera] = useState('');
+  const [inlineNewProceso, setInlineNewProceso] = useState(() => {
+    const m = new Date().getMonth() + 1, y = new Date().getFullYear();
+    if (m >= 9) return `Marzo ${y + 1}`;
+    if (m >= 4) return `Agosto ${y}`;
+    return `Marzo ${y}`;
+  });
+  const [inlineNewRas, setInlineNewRas] = useState(false);
+  const [inlineAdding, setInlineAdding] = useState(false);
+
+  // Confirm modal state (replaces native confirm/alert)
+  const [confirmModal, setConfirmModal] = useState<{
+    title: string;
+    message: string;
+    detail?: string;
+    onConfirm: () => void;
+    onCancel?: () => void;
+    confirmLabel?: string;
+    cancelLabel?: string;
+  } | null>(null);
+
   useEffect(() => {
     if (showModal) {
       document.body.style.overflow = 'hidden';
@@ -115,13 +139,13 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
       if (o.deleted_at) return false;
       
       const searchLower = filter.toLowerCase();
-      const matchesSearch = !filter || 
-        o.nombre.toLowerCase().includes(searchLower) || 
-        (o.cedula && o.cedula.includes(filter)) || 
+      const matchesSearch = !filter ||
+        (o.nombre || '').toLowerCase().includes(searchLower) ||
+        (o.cedula && o.cedula.includes(filter)) ||
         (o.mail && o.mail.toLowerCase().includes(searchLower));
-      
-      const matchesDateFrom = !dateFrom || o.fecha_lead >= dateFrom;
-      const matchesDateTo = !dateTo || o.fecha_lead <= dateTo;
+
+      const matchesDateFrom = !dateFrom || (o.fecha_lead || '') >= dateFrom;
+      const matchesDateTo = !dateTo || (o.fecha_lead || '') <= dateTo;
       const matchesProceso = !procesoFilter || o.proceso_inicio === procesoFilter;
       const matchesFase = smartConditions.length > 0
         ? true
@@ -318,8 +342,8 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
       fase_oportunidad: formData.get('fase_oportunidad'),
       liceo_tipo: formData.get('liceo_tipo'),
       ras_agendada: formData.get('ras_agendada') === 'on',
-      multiple_interes: multipleInteres,
-      otros_intereses: multipleInteres ? otrosIntereses.filter(c => typeof c === 'string' && c.length > 1) : [],
+      multiple_interes: false,
+      otros_intereses: [],
       comentario_extra: formData.get('comentario_extra'),
     };
 
@@ -328,7 +352,16 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
     if (sapeVal) {
       const existingNombre = validateSape(sapeVal, editingOpp?.opp_id);
       if (existingNombre) {
-        const continuar = confirm(`El SAPE "${sapeVal}" ya está asignado a "${existingNombre}".\n\n¿Deseas continuar? (Solo se permite duplicar si es la misma persona)`);
+        const continuar = await new Promise<boolean>(resolve => {
+          setConfirmModal({
+            title: 'SAPE duplicado',
+            message: `El SAPE "${sapeVal}" ya está asignado a "${existingNombre}".`,
+            detail: 'Solo se permite duplicar si es la misma persona. ¿Deseas continuar?',
+            confirmLabel: 'Continuar',
+            onConfirm: () => { setConfirmModal(null); resolve(true); },
+            onCancel: () => { setConfirmModal(null); resolve(false); },
+          });
+        });
         if (!continuar) { setIsSubmitting(false); return; }
       }
     }
@@ -340,39 +373,16 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
         await onAdd(updatedOpp);
       }
 
-      // Solo preguntar por carreras NUEVAS (que no existían antes)
-      const carrerasNuevas = [...new Set(otrosIntereses)]
-        .filter(c => c !== updatedOpp.carrera_interes && !originalOtrosIntereses.includes(c));
-      if (multipleInteres && carrerasNuevas.length > 0) {
-        const carrerasTexto = carrerasNuevas.join(', ');
-        const generar = confirm(`¿Deseas generar una oportunidad separada para cada carrera adicional?\n\nCarreras nuevas: ${carrerasTexto}\n\nSe crearán ${carrerasNuevas.length} oportunidad(es) con los mismos datos de ${updatedOpp.nombre}.`);
-        if (generar) {
-          for (const carrera of carrerasNuevas) {
-            await onAdd({
-              nombre: updatedOpp.nombre,
-              cedula: updatedOpp.cedula,
-              mail: updatedOpp.mail,
-              sape: updatedOpp.sape,
-              carrera_interes: carrera,
-              proceso_inicio: updatedOpp.proceso_inicio,
-              fase_oportunidad: updatedOpp.fase_oportunidad,
-              liceo_tipo: updatedOpp.liceo_tipo,
-              liceo: updatedOpp.liceo || '',
-              fecha_lead: updatedOpp.fecha_lead || new Date().toISOString().split('T')[0],
-              ras_agendada: false,
-              multiple_interes: true,
-              otros_intereses: [],
-              comentario_extra: `[Generada desde múltiples intereses - Carrera principal: ${updatedOpp.carrera_interes}] ${updatedOpp.comentario_extra || ''}`,
-            });
-          }
-        }
-      }
-
       setShowModal(false);
       setEditingOpp(null);
     } catch (err: any) {
       console.error('[OpportunitiesManager] Save error:', err);
-      alert(`Error al guardar la oportunidad: ${err?.message || err}`);
+      setConfirmModal({
+        title: 'Error al guardar',
+        message: err?.message || 'Ocurrió un error inesperado al guardar la oportunidad.',
+        confirmLabel: 'Cerrar',
+        onConfirm: () => setConfirmModal(null),
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -625,6 +635,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
           <h5 className="text-xs font-black text-gray-900 uppercase tracking-wider mb-4 flex items-center gap-2">
             <span className="w-1.5 h-4 bg-blue-600 rounded-full"></span>
             Pipeline Actual
+            <InfoTooltip text="Distribución de oportunidades por fase. Azul = etapas iniciales, Amarillo = en evaluación, Rojo = no interesados, Verde = promesa o inscripto." />
           </h5>
           <div className="h-[180px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -654,6 +665,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
           <h5 className="text-xs font-black text-gray-900 uppercase tracking-wider mb-4 flex items-center gap-2">
             <span className="w-1.5 h-4 bg-purple-600 rounded-full"></span>
             Mix de Carreras
+            <InfoTooltip text="Cantidad de oportunidades por carrera de interés. Permite ver qué carreras generan más demanda en el proceso seleccionado." />
           </h5>
           <div className="h-[180px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -685,7 +697,10 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
       {/* Header Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Oportunidades de Venta</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl font-bold text-gray-900">Oportunidades de Venta</h2>
+            <InfoTooltip text="Las oportunidades representan prospectos calificados en el pipeline de ventas. Se agrupan por contacto (SAPE) y avanzan por fases: Interesado → Evaluando → Contactado → Promesa → Inscripto. Usa la búsqueda inteligente para filtrar con lenguaje natural." />
+          </div>
           <p className="text-sm text-gray-500">Gestión avanzada del pipeline de asesoría</p>
         </div>
         <div className="flex items-center gap-3">
@@ -1093,6 +1108,82 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
                       ))}
                     </tbody>
                   </table>
+                  {/* Inline add opp */}
+                  {addingForContact === group.key ? (
+                    <div className="px-5 py-4 border-t border-gray-100 bg-gray-50/50 flex flex-wrap items-end gap-3">
+                      <div>
+                        <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Carrera *</label>
+                        <select value={inlineNewCarrera} onChange={e => setInlineNewCarrera(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                          <option value="">Seleccionar...</option>
+                          {CARRERAS_OPTIONS.map(cr => <option key={cr} value={cr}>{cr}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Proceso</label>
+                        <select value={inlineNewProceso} onChange={e => setInlineNewProceso(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                          {PROCESO_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                        </select>
+                      </div>
+                      <label className="flex items-center gap-2 cursor-pointer pb-2">
+                        <input type="checkbox" checked={inlineNewRas} onChange={e => setInlineNewRas(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
+                        <span className="text-xs font-bold text-gray-600">Agendar RAS</span>
+                      </label>
+                      <div className="flex items-center gap-2 pb-0.5">
+                        <button
+                          onClick={() => { setAddingForContact(null); setInlineNewCarrera(''); setInlineNewRas(false); }}
+                          className="px-3 py-2 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-100 transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          disabled={!inlineNewCarrera || inlineAdding}
+                          onClick={async () => {
+                            const ref = group.opps[0];
+                            setInlineAdding(true);
+                            try {
+                              await onAdd({
+                                nombre: ref.nombre,
+                                cedula: ref.cedula || '',
+                                telefono: ref.telefono || '',
+                                mail: ref.mail || '',
+                                sape: ref.sape || '',
+                                carrera_interes: inlineNewCarrera,
+                                liceo: ref.liceo || '',
+                                fecha_lead: new Date().toISOString().split('T')[0],
+                                ras_agendada: inlineNewRas,
+                                multiple_interes: false,
+                                liceo_tipo: ref.liceo_tipo,
+                                proceso_inicio: inlineNewProceso,
+                                fase_oportunidad: 'Interesado',
+                                comentario_extra: '',
+                              });
+                              setAddingForContact(null);
+                              setInlineNewCarrera('');
+                              setInlineNewRas(false);
+                              if (onRefresh) onRefresh();
+                            } catch (err) {
+                              console.error(err);
+                            } finally {
+                              setInlineAdding(false);
+                            }
+                          }}
+                          className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 transition-colors disabled:opacity-50 flex items-center gap-1"
+                        >
+                          {inlineAdding ? 'Creando...' : 'Crear'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="px-5 py-2.5 border-t border-gray-100">
+                      <button
+                        onClick={() => { setAddingForContact(group.key); setInlineNewCarrera(''); setInlineNewRas(false); }}
+                        className="text-purple-600 hover:text-purple-800 text-xs font-bold flex items-center gap-1 transition-colors"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        Agregar oportunidad
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1166,42 +1257,6 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
                           {Object.values(LiceoTipo).map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
                       </div>
-                    </div>
-
-                    <div className="bg-purple-50 p-6 rounded-2xl border border-purple-100 space-y-4">
-                      <label className="flex items-center gap-3 cursor-pointer group">
-                        <input type="checkbox" checked={multipleInteres} onChange={(e) => { setMultipleInteres(e.target.checked); if (!e.target.checked) setOtrosIntereses([]); }} className="w-5 h-5 rounded-lg border-gray-300 text-purple-600 focus:ring-purple-500" />
-                        <span className="text-sm font-bold text-gray-700 group-hover:text-purple-600 transition-colors uppercase">Múltiples Interés</span>
-                      </label>
-                      {multipleInteres && (
-                        <div className="pt-3 border-t border-purple-200 space-y-3">
-                          <label className="text-[10px] font-black text-purple-500 uppercase block">Otras carreras de interés</label>
-                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                            {CARRERAS_OPTIONS.map(c => {
-                              const isMain = c === mainCarrera;
-                              const isSelected = otrosIntereses.includes(c);
-                              return (
-                                <button
-                                  key={c}
-                                  type="button"
-                                  disabled={isMain}
-                                  onClick={() => setOtrosIntereses(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])}
-                                  className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
-                                    isMain ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' :
-                                    isSelected ? 'bg-purple-600 text-white border-purple-600 shadow-md' :
-                                    'bg-white text-gray-600 border-gray-200 hover:border-purple-400'
-                                  }`}
-                                >
-                                  {c} {isMain ? '(principal)' : ''}
-                                </button>
-                              );
-                            })}
-                          </div>
-                          {otrosIntereses.length > 0 && (
-                            <p className="text-[10px] text-purple-600 font-bold">{otrosIntereses.length} carrera(s) adicional(es) seleccionada(s)</p>
-                          )}
-                        </div>
-                      )}
                     </div>
 
                     <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 space-y-4">
@@ -1329,6 +1384,43 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
             </div>
           </div>
         </div>
+      )}
+
+      {/* =================== CONFIRM / ALERT MODAL =================== */}
+      {confirmModal && (
+        <>
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => { confirmModal.onCancel?.(); }} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in zoom-in-95 duration-200">
+              <div className="px-8 py-6">
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 text-center mb-2">{confirmModal.title}</h3>
+                <p className="text-sm text-gray-600 text-center">{confirmModal.message}</p>
+                {confirmModal.detail && (
+                  <p className="text-sm text-gray-500 text-center mt-2 whitespace-pre-line bg-gray-50 rounded-xl px-4 py-3 mt-3">{confirmModal.detail}</p>
+                )}
+              </div>
+              <div className="px-8 py-4 bg-gray-50 rounded-b-2xl flex justify-center gap-3">
+                {confirmModal.onCancel && (
+                  <button
+                    onClick={confirmModal.onCancel}
+                    className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-colors"
+                  >
+                    {confirmModal.cancelLabel || 'Cancelar'}
+                  </button>
+                )}
+                <button
+                  onClick={confirmModal.onConfirm}
+                  className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors"
+                >
+                  {confirmModal.confirmLabel || 'Aceptar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </>
   );

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { RAS, Oportunidad, ModalidadRAS } from '../types';
 import { PieChart, Pie, BarChart, Bar, XAxis, YAxis, Cell, ResponsiveContainer, Tooltip, LabelList } from 'recharts';
 import { exportChartsAsImage, exportChartsAsCSV, ChartData } from '../lib/exportChart';
+import InfoTooltip from './InfoTooltip';
 
 interface RasesManagerProps {
   rases: RAS[];
@@ -46,6 +47,7 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
   const [rasToEdit, setRasToEdit] = useState<RAS | null>(null);
   const [showCharts, setShowCharts] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('list');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -79,16 +81,16 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
   };
 
   const activeRases = useMemo(() => {
-    return rases.filter(r => {
+    return (rases || []).filter(r => {
       if (r.deleted_at) return false;
       const search = filter.toLowerCase();
-      const matchesNombre = !filter || r.nombre_interesado.toLowerCase().includes(search);
-      const matchesTitulo = !tituloFilter || r.titulo.toLowerCase().includes(tituloFilter.toLowerCase());
+      const matchesNombre = !filter || (r.nombre_interesado || '').toLowerCase().includes(search);
+      const matchesTitulo = !tituloFilter || (r.titulo || '').toLowerCase().includes(tituloFilter.toLowerCase());
       const matchesAgente = !agenteFilter || r.agente_nombre === agenteFilter;
       const matchesModalidad = !modalidadFilter || r.modalidad === modalidadFilter;
       const matchesCarrera = !carreraFilter || r.carrera === carreraFilter;
       const matchesEstado = !estadoFilter || r.estado_oportunidad === estadoFilter;
-      const fechaStr = r.fecha_hora.split('T')[0];
+      const fechaStr = (r.fecha_hora || '').split('T')[0];
       const matchesDateFrom = !dateFrom || fechaStr >= dateFrom;
       const matchesDateTo = !dateTo || fechaStr <= dateTo;
       const rasMonth = fechaStr.split('-')[1];
@@ -180,9 +182,10 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
     if (!oppSearch.trim()) return availableOpps.slice(0, 10);
     const s = oppSearch.toLowerCase();
     return availableOpps.filter(o =>
-      o.nombre.toLowerCase().includes(s) ||
-      (o.nombre_trato && o.nombre_trato.toLowerCase().includes(s)) ||
-      o.carrera_interes.toLowerCase().includes(s)
+      (o.nombre || '').toLowerCase().includes(s) ||
+      (o.nombre_trato ? String(o.nombre_trato).toLowerCase().includes(s) : false) ||
+      (o.carrera_interes || '').toLowerCase().includes(s) ||
+      (o.sape ? String(o.sape).toLowerCase().includes(s) : false)
     ).slice(0, 10);
   }, [availableOpps, oppSearch]);
 
@@ -252,45 +255,67 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
       {/* Header Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Agenda de RASES</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl font-bold text-gray-900">Agenda de RASES</h2>
+            <InfoTooltip text="RAS = Reunión de Asesoramiento. Son las citas agendadas con prospectos interesados. Cada RAS está vinculada a una oportunidad. Desde acá podés agendar nuevas reuniones, filtrar por agente/modalidad/carrera y ver el rendimiento por asesor." />
+          </div>
           <p className="text-sm text-gray-500">Control de reuniones de asesoramiento</p>
         </div>
         <div className="flex items-center gap-3">
           <input type="file" ref={fileInputRef} onChange={handleImportCSV} accept=".csv" className="hidden" />
-          <button
-            onClick={() => {
-              const charts: ChartData[] = [
-                { title: 'Modalidad', data: stats.pieData.map(d => ({ name: d.name, value: d.value, color: d.color })), type: 'pie' },
-                { title: 'RAS por Agente', data: stats.agenteData.map((d, i) => ({ ...d, color: AGENTE_COLORS[i % AGENTE_COLORS.length] })), type: 'bar-horizontal' },
-                ...(stats.carreraData.length > 0 ? [{ title: 'RAS por Carrera', data: stats.carreraData.map((d, i) => ({ ...d, color: CARRERA_HEX[d.name] || CARRERA_FALLBACK[i % CARRERA_FALLBACK.length] })), type: 'bar' as const }] : []),
-              ];
-              exportChartsAsImage(charts, 'rases_graficas');
-            }}
-            className="bg-white border border-gray-200 text-gray-700 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-gray-50 transition-all flex items-center gap-2 active:scale-95"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Imagen
-          </button>
-          <button
-            onClick={() => {
-              const charts: ChartData[] = [
-                { title: 'Modalidad', data: stats.pieData.map(d => ({ name: d.name, value: d.value })), type: 'pie' },
-                { title: 'RAS por Agente', data: stats.agenteData, type: 'bar-horizontal' },
-                ...(stats.carreraData.length > 0 ? [{ title: 'RAS por Carrera', data: stats.carreraData, type: 'bar' as const }] : []),
-              ];
-              exportChartsAsCSV(charts, 'rases_datos');
-            }}
-            className="bg-white border border-gray-200 text-gray-700 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-gray-50 transition-all flex items-center gap-2 active:scale-95"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-            CSV
-          </button>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="bg-blue-50 text-blue-700 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-blue-100 transition-all flex items-center gap-2 active:scale-95"
-          >
-            Importar CSV
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowActionsMenu(p => !p)}
+              className="bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl font-bold shadow-sm hover:bg-gray-50 transition-all text-sm active:scale-95 flex items-center gap-2"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+            </button>
+            {showActionsMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowActionsMenu(false)} />
+                <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-44 animate-in zoom-in-95 duration-150">
+                  <button
+                    onClick={() => {
+                      const charts: ChartData[] = [
+                        { title: 'Modalidad', data: stats.pieData.map(d => ({ name: d.name, value: d.value, color: d.color })), type: 'pie' },
+                        { title: 'RAS por Agente', data: stats.agenteData.map((d, i) => ({ ...d, color: AGENTE_COLORS[i % AGENTE_COLORS.length] })), type: 'bar-horizontal' },
+                        ...(stats.carreraData.length > 0 ? [{ title: 'RAS por Carrera', data: stats.carreraData.map((d, i) => ({ ...d, color: CARRERA_HEX[d.name] || CARRERA_FALLBACK[i % CARRERA_FALLBACK.length] })), type: 'bar' as const }] : []),
+                      ];
+                      exportChartsAsImage(charts, 'rases_graficas');
+                      setShowActionsMenu(false);
+                    }}
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Exportar Imagen
+                  </button>
+                  <button
+                    onClick={() => {
+                      const charts: ChartData[] = [
+                        { title: 'Modalidad', data: stats.pieData.map(d => ({ name: d.name, value: d.value })), type: 'pie' },
+                        { title: 'RAS por Agente', data: stats.agenteData, type: 'bar-horizontal' },
+                        ...(stats.carreraData.length > 0 ? [{ title: 'RAS por Carrera', data: stats.carreraData, type: 'bar' as const }] : []),
+                      ];
+                      exportChartsAsCSV(charts, 'rases_datos');
+                      setShowActionsMenu(false);
+                    }}
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    Exportar CSV
+                  </button>
+                  <div className="border-t border-gray-100 my-1" />
+                  <button
+                    onClick={() => { fileInputRef.current?.click(); setShowActionsMenu(false); }}
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    Importar CSV
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
           {onAdd && (
             <button
               onClick={openAddModal}
@@ -722,7 +747,7 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
                       <div className="relative">
                         <input
                           type="text"
-                          placeholder="Buscar por nombre, trato o carrera..."
+                          placeholder="Buscar por nombre, SAPE, trato o carrera..."
                           value={oppSearch}
                           onChange={e => setOppSearch(e.target.value)}
                           className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full focus:ring-2 focus:ring-green-500 outline-none"

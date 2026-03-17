@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { tienePermiso, type Profile, type Rol } from '../lib/permisos';
+import InfoTooltip from './InfoTooltip';
 
 const ROLES: Rol[] = ['admin', 'coordinador', 'asesor'];
 
@@ -168,7 +169,10 @@ const GestionUsuarios: React.FC = () => {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Gestion de Usuarios</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-2xl font-bold text-gray-900">Gestion de Usuarios</h2>
+          <InfoTooltip text="Administra los usuarios del CRM. Los roles definen los permisos: Admin (acceso total), Coordinador (gestión de equipos) y Asesor (gestión de sus leads y oportunidades). Desactivar un usuario le impide acceder al sistema." />
+        </div>
         <button
           onClick={() => { setShowModal(true); setError(null); setSuccess(null); }}
           className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-700 transition-all shadow-lg active:scale-[0.98]"

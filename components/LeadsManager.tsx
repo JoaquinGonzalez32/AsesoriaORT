@@ -3,6 +3,7 @@ import { Lead, ResultadoLlamada, HorarioLlamada, ModalidadRAS, FaseOportunidad, 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { exportChartsAsImage, exportChartsAsCSV, ChartData } from '../lib/exportChart';
 import { supabase } from '../lib/supabase';
+import InfoTooltip from './InfoTooltip';
 
 interface LeadsManagerProps {
   leads: Lead[];
@@ -77,14 +78,14 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
   const activeLeads = useMemo(() => {
     return (leads || []).filter(l => {
       const s = filter.toLowerCase();
-      const matchesSearch = !filter || l.nombre.toLowerCase().includes(s);
+      const matchesSearch = !filter || (l.nombre || '').toLowerCase().includes(s);
       const matchesStatus = !statusFilter || l.resultado_llamada === statusFilter;
-      const [leadYear, leadMonth] = l.fecha_lead.split('-');
+      const [leadYear, leadMonth] = (l.fecha_lead || '').split('-');
       const matchesMonth = !monthFilter || leadMonth === monthFilter;
       const matchesYear = !yearFilter || leadYear === yearFilter;
       const matchesCarrera = !carreraFilter || l.carrera_interes === carreraFilter;
-      const matchesDesde = !desdeFilter || l.fecha_lead >= desdeFilter;
-      const matchesHasta = !hastaFilter || l.fecha_lead <= hastaFilter;
+      const matchesDesde = !desdeFilter || (l.fecha_lead || '') >= desdeFilter;
+      const matchesHasta = !hastaFilter || (l.fecha_lead || '') <= hastaFilter;
       return matchesSearch && matchesStatus && matchesMonth && matchesYear && matchesCarrera && matchesDesde && matchesHasta;
     });
   }, [leads, filter, statusFilter, monthFilter, yearFilter, carreraFilter, desdeFilter, hastaFilter]);
@@ -391,12 +392,12 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
             <p className="text-xs text-blue-600 font-bold mt-1">de {leads.length} totales</p>
           </div>
           <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Efectividad del Filtro</p>
-            <h4 className="text-3xl font-black text-green-600">{Math.round((stats.contactados / stats.total) * 100 || 0)}%</h4>
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 flex items-center gap-1">Efectividad del Filtro <InfoTooltip text="Porcentaje de leads que fueron contactados o mostraron interés sobre el total filtrado. Indica qué tan efectiva es la gestión de contacto." /></p>
+            <h4 className="text-3xl font-black text-green-600">{stats.total > 0 ? Math.round((stats.contactados / stats.total) * 100) : 0}%</h4>
             <div className="w-full bg-gray-100 rounded-full h-2 mt-3 overflow-hidden">
               <div
                 className="bg-green-500 h-2 rounded-full transition-all duration-500"
-                style={{ width: `${Math.round((stats.contactados / stats.total) * 100 || 0)}%` }}
+                style={{ width: `${stats.total > 0 ? Math.round((stats.contactados / stats.total) * 100) : 0}%` }}
               />
             </div>
             <p className="text-xs text-gray-500 font-medium mt-2">{stats.contactados} de {stats.total} contactados</p>
@@ -437,7 +438,10 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
       <div className="flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="shrink-0">
-            <h2 className="text-2xl font-bold text-gray-900">Gestión de Leads</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-2xl font-bold text-gray-900">Gestión de Leads</h2>
+              <InfoTooltip text="Un lead es un prospecto que mostró interés inicial. Acá gestionás el primer contacto: registrar llamadas, marcar resultados y convertirlos en oportunidades cuando califican. Usa los filtros para segmentar y el menú ⋯ para exportar o importar desde CSV." />
+            </div>
             <p className="text-sm text-gray-500">Administra los prospectos entrantes</p>
           </div>
           <div className="flex items-center gap-3">

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { syncListaItemsWithOportunidades } from '../lib/syncListaOportunidades';
+import InfoTooltip from './InfoTooltip';
 
 interface ListaDeTrabajoItem {
   id: string;
@@ -307,6 +308,7 @@ const ListaDetalle: React.FC = () => {
           <div>
             <div className="flex items-center gap-3">
               <h2 className="text-2xl font-bold text-gray-900">{lista.nombre}</h2>
+              <InfoTooltip text="Detalle de la lista importada. Cada fila es una oportunidad del CSV. Usá los tags para marcar el estado de contacto. Si la oportunidad tiene SAPE, podés hacer clic en 'Ver' para ir al detalle completo. Los cambios de tag se sincronizan en todas las listas que compartan la misma oportunidad." />
               {lista.completada && (
                 <span className="bg-green-100 text-green-700 text-[10px] font-black uppercase px-2 py-0.5 rounded-full">Completada</span>
               )}
@@ -386,7 +388,7 @@ const ListaDetalle: React.FC = () => {
                 <th className="text-left p-4 text-[10px] font-black text-gray-400 uppercase">Carrera</th>
                 <th className="text-left p-4 text-[10px] font-black text-gray-400 uppercase">SAPE</th>
                 <th className="text-left p-4 text-[10px] font-black text-gray-400 uppercase">Proceso</th>
-                <th className="text-left p-4 text-[10px] font-black text-gray-400 uppercase">Tag</th>
+                <th className="text-left p-4 text-[10px] font-black text-gray-400 uppercase"><span className="flex items-center gap-1">Tag <InfoTooltip text="Sin Contactar: aún no se intentó comunicación. Aguardando Respuesta: se contactó y se espera respuesta. Desinteresado: el prospecto no tiene interés." /></span></th>
                 <th className="text-right p-4 text-[10px] font-black text-gray-400 uppercase">Acciones</th>
               </tr>
             </thead>

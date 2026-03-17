@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, LabelList } from 'recharts';
 import { Lead, Oportunidad, RAS, ResultadoLlamada, ResultadoRAS, FaseOportunidad, ModalidadRAS } from '../types';
 import { exportChartsAsImage, exportChartsAsCSV, ChartData } from '../lib/exportChart';
+import InfoTooltip from './InfoTooltip';
 
 interface DashboardProps {
   leads: Lead[];
@@ -245,7 +246,10 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) =>
       {/* ============= HEADER ============= */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">Panel de Asesoría</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">Panel de Asesoría</h2>
+            <InfoTooltip text="Vista global del rendimiento comercial. Muestra el embudo de conversión desde leads hasta inscriptos, desglosado por secciones. Usa el selector de período para ver datos generales o filtrados por mes." />
+          </div>
           <p className="text-gray-500 mt-1 font-medium">Control en tiempo real del embudo comercial</p>
         </div>
         <div className="flex items-center gap-3">
@@ -293,7 +297,7 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) =>
       <div className="flex flex-col xl:flex-row gap-3">
         {/* Captación */}
         <div className="flex-1 bg-blue-50/40 rounded-2xl p-3 border border-blue-100/60">
-          <p className="text-[9px] font-black uppercase tracking-widest text-blue-400 mb-2 px-1">Captación</p>
+          <p className="text-[9px] font-black uppercase tracking-widest text-blue-400 mb-2 px-1 flex items-center gap-1">Captación <InfoTooltip text="Etapa inicial: leads nuevos que ingresan al sistema. 1er Contacto = primera llamada realizada. Contactados = se logró comunicación. Interesados = muestran interés real en inscribirse." /></p>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <StatCard title="Total Leads" value={globalStats.totalLeads} sub="Base de Datos" iconColor="bg-blue-500" highlight />
             <StatCard title="1er Contacto" value={globalStats.primerContacto} sub="Nuevos" iconColor="bg-sky-500" />
@@ -303,7 +307,7 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) =>
         </div>
         {/* Cierre */}
         <div className="xl:w-[320px] bg-green-50/40 rounded-2xl p-3 border border-green-100/60">
-          <p className="text-[9px] font-black uppercase tracking-widest text-green-500 mb-2 px-1">Cierre</p>
+          <p className="text-[9px] font-black uppercase tracking-widest text-green-500 mb-2 px-1 flex items-center gap-1">Cierre <InfoTooltip text="Etapa final del embudo. RAS Agend. = reuniones de asesoramiento agendadas. Result. RAS = reuniones efectivamente realizadas (cierres exitosos)." /></p>
           <div className="grid grid-cols-2 gap-3">
             <StatCard title="RAS Agend." value={globalStats.rasAgendadas} sub="Agendados" iconColor="bg-indigo-500" />
             <StatCard title="Result. RAS" value={globalStats.rasRealizadas} sub="Cierres" iconColor="bg-green-500" highlight />
@@ -317,12 +321,13 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) =>
           <h3 className="text-lg font-bold mb-8 text-gray-800 flex items-center gap-2">
             <span className="w-1.5 h-6 bg-blue-600 rounded-full"></span>
             Estado del Embudo
+            <InfoTooltip text="Visualización del embudo de conversión: desde el primer contacto hasta oportunidades generadas. Las barras muestran cuántos prospectos avanzan en cada etapa." />
           </h3>
           <div className="h-[320px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={funnelData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+              <BarChart data={funnelData} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 11, fontWeight: 700 }} dy={15} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 11, fontWeight: 700 }} dy={10} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 11, fontWeight: 700 }} />
                 <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', padding: '12px' }} cursor={{ fill: '#f9fafb' }} />
                 <Bar dataKey="value" radius={[8, 8, 0, 0]} barSize={50}>
@@ -340,13 +345,14 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) =>
           <h3 className="text-lg font-bold mb-6 text-gray-800 flex items-center gap-2">
             <span className="w-1.5 h-6 bg-blue-600 rounded-full"></span>
             Top Carreras por Interés
+            <InfoTooltip text="Ranking de carreras con más oportunidades de venta. Permite identificar qué carreras tienen mayor demanda en el período seleccionado." />
           </h3>
           <div className="space-y-5">
             {Array.from(new Set(kpiLeads.map(l => l.carrera_interes))).filter(Boolean)
               .map(carrera => ({ carrera, count: kpiLeads.filter(l => l.carrera_interes === carrera).length }))
               .sort((a, b) => b.count - a.count)
               .slice(0, 6).map(({ carrera, count }, idx) => {
-              const percentage = Math.round((count / kpiLeads.length) * 100) || 0;
+              const percentage = kpiLeads.length > 0 ? Math.round((count / kpiLeads.length) * 100) : 0;
               const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-pink-500', 'bg-sky-500'];
               return (
                 <div key={carrera} className="group">

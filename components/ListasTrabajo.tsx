@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { syncListaItemsWithOportunidades } from '../lib/syncListaOportunidades';
+import InfoTooltip from './InfoTooltip';
 
 interface Lista {
   id: string;
@@ -254,7 +255,10 @@ const ListasTrabajo: React.FC = () => {
       {/* Cabecera */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Listas de Trabajo</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl font-bold text-gray-900">Listas de Trabajo</h2>
+            <InfoTooltip text="Las listas de trabajo se importan desde Zoho CRM vía CSV. Cada lista agrupa oportunidades para gestionar contactos. Al importar, el sistema vincula automáticamente con oportunidades existentes por código SAPE. Podés marcar una lista como completada cuando termines de trabajarla." />
+          </div>
           <p className="text-sm text-gray-500">Importaciones de oportunidades desde Zoho CRM</p>
         </div>
         <button
