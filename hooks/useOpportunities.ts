@@ -80,6 +80,14 @@ export function useOpportunities(rasActions: RasActions) {
     if (error) { throw error; }
     setOpportunities(prev => prev.map(o => o.opp_id === updated.opp_id ? updated : o));
 
+    // Sincronizar fase a listas_de_trabajo
+    if (updated.fase_oportunidad) {
+      await supabase
+        .from('listas_de_trabajo')
+        .update({ fase: updated.fase_oportunidad })
+        .eq('opp_id', opp_id);
+    }
+
     if (updated.ras_agendada && rasInfo) {
       const { data: existing } = await supabase
         .from('rases')

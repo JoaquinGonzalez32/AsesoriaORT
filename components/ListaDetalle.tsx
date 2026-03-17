@@ -147,14 +147,31 @@ const ListaDetalle: React.FC = () => {
   // ─── Tag change ─────────────────────────────────────────────────────────
 
   const handleTagChange = async (itemId: string, newTag: string | null) => {
-    const { error: err } = await supabase
-      .from('listas_de_trabajo')
-      .update({ tag: newTag })
-      .eq('id', itemId);
-    if (err) {
-      setError(err.message);
+    const item = items.find(i => i.id === itemId);
+    if (!item) return;
+
+    if (item.opp_id) {
+      // Actualizar todos los items que comparten la misma oportunidad (en todas las listas)
+      const { error: err } = await supabase
+        .from('listas_de_trabajo')
+        .update({ tag: newTag })
+        .eq('opp_id', item.opp_id);
+      if (err) {
+        setError(err.message);
+      } else {
+        setItems(prev => prev.map(i => i.opp_id === item.opp_id ? { ...i, tag: newTag } : i));
+      }
     } else {
-      setItems(prev => prev.map(i => i.id === itemId ? { ...i, tag: newTag } : i));
+      // Sin opp_id: solo actualizar este item específico
+      const { error: err } = await supabase
+        .from('listas_de_trabajo')
+        .update({ tag: newTag })
+        .eq('id', itemId);
+      if (err) {
+        setError(err.message);
+      } else {
+        setItems(prev => prev.map(i => i.id === itemId ? { ...i, tag: newTag } : i));
+      }
     }
   };
 
