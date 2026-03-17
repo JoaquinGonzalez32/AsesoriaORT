@@ -5,6 +5,8 @@ import { supabase } from '../lib/supabase';
 
 import { ROUTES } from '../constants';
 import InfoTooltip from './InfoTooltip';
+import Breadcrumbs from './ui/Breadcrumbs';
+import { CARRERAS_OPTIONS, AGENTES_RAS, PROCESO_OPTIONS, FASE_HEX, FASE_STYLE } from '../lib/shared-constants';
 
 interface OportunidadDetalleProps {
   opportunities: Oportunidad[];
@@ -16,35 +18,6 @@ interface OportunidadDetalleProps {
   onUpdateRas: (id: string, data: any) => Promise<void>;
   onDeleteRas: (id: string) => Promise<void>;
 }
-
-const CARRERAS_OPTIONS = ['LV', 'WY', 'LT', 'LD', 'YN', 'LG', 'VD', 'UI', 'GF', 'WE'];
-const AGENTES_RAS = [
-  'Natalia Benarducci', 'Mariana Muzi', 'Bruno Arce', 'Diego Miranda',
-  'Alejandro Erramun', 'Lucía Nazur', 'Fabián Barros', 'María Podesta',
-  'Fernanda Nuñez', 'Pablo Pirotto', 'Daniel Dominguez',
-];
-const PROCESO_OPTIONS = (() => {
-  const opts: string[] = [];
-  for (let y = 2023; y <= 2030; y++) { opts.push(`Marzo ${y}`, `Agosto ${y}`); }
-  return opts;
-})();
-
-const FASE_HEX: Record<string, string> = {
-  [FaseOportunidad.Interesado]: '#3b82f6',
-  [FaseOportunidad.Evaluando]: '#60a5fa',
-  [FaseOportunidad.Contactado]: '#f59e0b',
-  [FaseOportunidad.NoInteresado]: '#ef4444',
-  [FaseOportunidad.PromesaInscripcion]: '#22c55e',
-  [FaseOportunidad.Inscripto]: '#16a34a',
-};
-const FASE_STYLE: Record<string, string> = {
-  [FaseOportunidad.Interesado]: 'bg-blue-100 text-blue-700',
-  [FaseOportunidad.Evaluando]: 'bg-sky-100 text-sky-700',
-  [FaseOportunidad.Contactado]: 'bg-yellow-100 text-yellow-700',
-  [FaseOportunidad.NoInteresado]: 'bg-red-100 text-red-700',
-  [FaseOportunidad.PromesaInscripcion]: 'bg-green-100 text-green-700',
-  [FaseOportunidad.Inscripto]: 'bg-emerald-100 text-emerald-800',
-};
 
 const OportunidadDetalle: React.FC<OportunidadDetalleProps> = ({
   opportunities, rases, onUpdateOpp, onDeleteOpp, onAddOpp, onAddRas, onUpdateRas, onDeleteRas,
@@ -300,6 +273,11 @@ const OportunidadDetalle: React.FC<OportunidadDetalleProps> = ({
   // ---------- RENDER ----------
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
+      <Breadcrumbs items={[
+        { label: 'Oportunidades', to: ROUTES.OPPORTUNITIES },
+        { label: opp ? `${opp.nombre} - ${opp.carrera_interes}` : 'Cargando...' },
+      ]} />
+
       {/* Warning: RAS agendada sin RAS */}
       {rasWarning && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 flex items-start gap-3">

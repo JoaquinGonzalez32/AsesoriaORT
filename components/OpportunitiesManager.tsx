@@ -6,6 +6,9 @@ import { exportChartsAsImage, exportChartsAsCSV, ChartData } from '../lib/export
 import { parseNLQuery, SmartCondition, NLOperator } from '../lib/nlParser';
 import { supabase } from '../lib/supabase';
 import InfoTooltip from './InfoTooltip';
+import { CARRERAS_OPTIONS, PROCESO_OPTIONS, FASE_HEX, FASE_STYLE, CARRERA_HEX, CARRERA_COLORS, AGENTES_RAS, getDefaultProceso, MESES } from '../lib/shared-constants';
+import Pagination from './ui/Pagination';
+import { useToast } from './ui/Toast';
 
 class OppErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: string | null }> {
   state = { error: null as string | null };
@@ -30,14 +33,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
   const [filter, setFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [procesoFilter, setProcesoFilter] = useState(() => {
-    const now = new Date();
-    const m = now.getMonth() + 1;
-    const y = now.getFullYear();
-    if (m >= 9) return `Marzo ${y + 1}`;
-    if (m >= 4) return `Agosto ${y}`;
-    return `Marzo ${y}`;
-  });
+  const [procesoFilter, setProcesoFilter] = useState(getDefaultProceso);
   const [faseFilter, setFaseFilter] = useState('');
   const [rasAgendadaFilter, setRasAgendadaFilter] = useState('');
   const [careerFilter, setCareerFilter] = useState<string[]>([]);
@@ -63,18 +59,16 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(true);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 30;
+  const { toast } = useToast();
   const careerDropdownRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Inline add opp for contact
   const [addingForContact, setAddingForContact] = useState<string | null>(null);
   const [inlineNewCarrera, setInlineNewCarrera] = useState('');
-  const [inlineNewProceso, setInlineNewProceso] = useState(() => {
-    const m = new Date().getMonth() + 1, y = new Date().getFullYear();
-    if (m >= 9) return `Marzo ${y + 1}`;
-    if (m >= 4) return `Agosto ${y}`;
-    return `Marzo ${y}`;
-  });
+  const [inlineNewProceso, setInlineNewProceso] = useState(getDefaultProceso);
   const [inlineNewRas, setInlineNewRas] = useState(false);
   const [inlineAdding, setInlineAdding] = useState(false);
 
@@ -108,31 +102,6 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showCareerDropdown]);
 
-
-  const CARRERAS_OPTIONS = ['LV', 'WY', 'LT', 'LD', 'YN', 'LG', 'VD', 'UI', 'GF', 'WE'];
-
-  const FASE_HEX: Record<string, string> = {
-    [FaseOportunidad.Interesado]: '#3b82f6',
-    [FaseOportunidad.Evaluando]: '#60a5fa',
-    [FaseOportunidad.Contactado]: '#f59e0b',
-    [FaseOportunidad.NoInteresado]: '#ef4444',
-    [FaseOportunidad.PromesaInscripcion]: '#22c55e',
-    [FaseOportunidad.Inscripto]: '#16a34a',
-  };
-
-  const CARRERA_HEX: Record<string, string> = {
-    'LV': '#0ea5e9', 'WY': '#8b5cf6', 'LT': '#f43f5e', 'LD': '#14b8a6',
-    'YN': '#f97316', 'LG': '#6366f1', 'VD': '#ec4899', 'UI': '#06b6d4',
-    'GF': '#a855f7', 'WE': '#eab308',
-  };
-
-  const PROCESO_OPTIONS = (() => {
-    const options: string[] = [];
-    for (let y = 2023; y <= 2030; y++) {
-      options.push(`Marzo ${y}`, `Agosto ${y}`);
-    }
-    return options;
-  })();
 
   const activeOpps = useMemo(() => {
     return (opportunities || []).filter(o => {
@@ -224,7 +193,18 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
     });
   }, [groupedBySape, careerFilter, careerMode, smartConditions, nlOperator]);
 
-  // Opps que se muestran (para stats)
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(filteredGroups.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pagedGroups = useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE;
+    return filteredGroups.slice(start, start + PAGE_SIZE);
+  }, [filteredGroups, safePage]);
+
+  // Reset page when filters change
+  useEffect(() => { setPage(1); }, [filter, dateFrom, dateTo, procesoFilter, faseFilter, rasAgendadaFilter, careerFilter, smartConditions, nlOperator]);
+
+  // Opps que se muestran (para stats — uses all filtered, not just paged)
   const displayOpps = useMemo(() => {
     return filteredGroups.flatMap(g => g.opps);
   }, [filteredGroups]);
@@ -541,7 +521,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
   };
 
   const handleExportCSV = () => {
-    if (activeOpps.length === 0) { alert('No hay datos para exportar.'); return; }
+    if (activeOpps.length === 0) { toast('warning', 'No hay datos para exportar.'); return; }
     const headers = ['Nombre', 'CI', 'Mail', 'Carrera', 'Liceo', 'Tipo Liceo', 'Fecha Lead', 'RAS Agendada', 'Estado'];
     const rows = activeOpps.map(o => [
       `"${o.nombre}"`, 
@@ -590,7 +570,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
       }
       setEditingContact(null);
     } catch {
-      alert('Error al actualizar el contacto.');
+      toast('error', 'Error al actualizar el contacto.');
     }
   };
 
@@ -709,8 +689,9 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
             <button
               onClick={() => setShowActionsMenu(p => !p)}
               className="bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl font-bold shadow-sm hover:bg-gray-50 transition-all text-sm active:scale-95 flex items-center gap-2"
+              aria-label="Menu de acciones"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
             </button>
             {showActionsMenu && (
               <>
@@ -774,7 +755,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
         <div className="flex items-center gap-2 mb-2">
           <svg className="w-4 h-4 text-blue-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6" strokeLinecap="round"/></svg>
           <span className="text-[11px] font-black uppercase text-blue-600 tracking-wide">Búsqueda inteligente</span>
-          <button type="button" onClick={() => setShowNlInfo(true)} className="w-5 h-5 rounded-full bg-blue-100 text-blue-500 hover:bg-blue-200 flex items-center justify-center transition-colors text-xs font-black">?</button>
+          <button type="button" onClick={() => setShowNlInfo(true)} className="w-5 h-5 rounded-full bg-blue-100 text-blue-500 hover:bg-blue-200 flex items-center justify-center transition-colors text-xs font-black" aria-label="Informacion sobre busqueda inteligente">?</button>
         </div>
         <div className="flex items-center gap-2">
           <input
@@ -790,6 +771,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
               onClick={() => { setNlQuery(''); setSmartConditions([]); setNlOperator('AND'); setCareerFilter([]); setFaseFilter(''); setRasAgendadaFilter(''); setFilter(''); }}
               className="text-gray-400 hover:text-gray-700 transition-colors p-1.5 rounded-lg hover:bg-gray-100"
               title="Limpiar búsqueda inteligente"
+              aria-label="Limpiar busqueda inteligente"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12" strokeLinecap="round"/></svg>
             </button>
@@ -989,7 +971,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
           importResult.type === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-800' :
           'bg-red-50 border-red-200 text-red-800'
         }`}>
-          <button onClick={() => setImportResult(null)} className="absolute top-2.5 right-3 opacity-50 hover:opacity-100 transition-opacity text-lg leading-none">&times;</button>
+          <button onClick={() => setImportResult(null)} className="absolute top-2.5 right-3 opacity-50 hover:opacity-100 transition-opacity text-lg leading-none" aria-label="Cerrar notificacion">&times;</button>
           <div className="flex items-center gap-2 font-bold pr-6">
             {importResult.type === 'success' && <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>}
             {importResult.type === 'warning' && <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>}
@@ -1006,7 +988,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
 
       {/* Contactos agrupados por SAPE */}
       <div className="space-y-3">
-        {filteredGroups.length > 0 ? filteredGroups.map(group => {
+        {pagedGroups.length > 0 ? pagedGroups.map(group => {
           const isExpanded = expandedContacts.includes(group.key);
           const hasMultiple = group.opps.length > 1;
           const c = group.contact;
@@ -1053,6 +1035,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
                     onClick={(e) => { e.stopPropagation(); setEditingContact({ key: group.key, opps: group.opps, nombre: c.nombre, cedula: c.cedula, telefono: c.telefono, mail: c.mail }); }}
                     className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all cursor-pointer"
                     title="Editar contacto"
+                    aria-label="Editar contacto"
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                   </span>
@@ -1193,6 +1176,13 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
             No se encontraron resultados.
           </div>
         )}
+        <Pagination
+          page={safePage}
+          totalPages={totalPages}
+          totalItems={filteredGroups.length}
+          pageSize={PAGE_SIZE}
+          onPageChange={setPage}
+        />
       </div>
       </div>
 
@@ -1209,8 +1199,8 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
                       <h3 className="text-xl font-bold">{editingOpp ? 'Gestionar Oportunidad' : 'Nueva Oportunidad'}</h3>
                       <p className="text-blue-200 text-xs mt-1">Completa los datos de seguimiento</p>
                     </div>
-                    <button type="button" onClick={() => setShowModal(false)} className="text-white opacity-50 hover:opacity-100 transition-opacity">
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    <button type="button" onClick={() => setShowModal(false)} className="text-white opacity-50 hover:opacity-100 transition-opacity" aria-label="Cerrar modal">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </button>
                   </div>
 
@@ -1279,7 +1269,16 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
 
                   <div className="px-8 py-6 bg-gray-50 flex justify-between items-center border-t border-gray-100 rounded-b-3xl shrink-0">
                     {editingOpp && (
-                      <button type="button" onClick={() => { if(confirm('¿Eliminar?')) onDelete(editingOpp.opp_id); setShowModal(false); }} className="text-red-500 text-xs font-black uppercase tracking-widest hover:underline">
+                      <button type="button" onClick={() => {
+                        setConfirmModal({
+                          title: 'Eliminar Oportunidad',
+                          message: '¿Estás seguro de que deseas eliminar esta oportunidad?',
+                          confirmLabel: 'Eliminar',
+                          cancelLabel: 'Cancelar',
+                          onConfirm: () => { onDelete(editingOpp.opp_id); setConfirmModal(null); setShowModal(false); },
+                          onCancel: () => setConfirmModal(null),
+                        });
+                      }} className="text-red-500 text-xs font-black uppercase tracking-widest hover:underline">
                         Eliminar Oportunidad
                       </button>
                     )}
@@ -1310,8 +1309,8 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
                       <h3 className="text-lg font-bold">Editar Contacto</h3>
                       <p className="text-indigo-200 text-xs mt-0.5">Se actualizarán {editingContact.opps.length} oportunidad(es)</p>
                     </div>
-                    <button type="button" onClick={() => setEditingContact(null)} className="text-white opacity-50 hover:opacity-100 transition-opacity">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    <button type="button" onClick={() => setEditingContact(null)} className="text-white opacity-50 hover:opacity-100 transition-opacity" aria-label="Cerrar modal">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </button>
                   </div>
                   <div className="p-6 space-y-4">
@@ -1352,8 +1351,8 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6" strokeLinecap="round"/></svg>
                 <h3 className="text-sm font-bold uppercase tracking-wider">Búsqueda Inteligente</h3>
               </div>
-              <button onClick={() => setShowNlInfo(false)} className="text-white/70 hover:text-white transition-colors">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              <button onClick={() => setShowNlInfo(false)} className="text-white/70 hover:text-white transition-colors" aria-label="Cerrar informacion">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </div>
             <div className="p-6 space-y-4">

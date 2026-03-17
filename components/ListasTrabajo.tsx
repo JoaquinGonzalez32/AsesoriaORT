@@ -4,6 +4,9 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { syncListaItemsWithOportunidades } from '../lib/syncListaOportunidades';
 import InfoTooltip from './InfoTooltip';
+import Modal from './ui/Modal';
+import ConfirmDialog from './ui/ConfirmDialog';
+import { useToast } from './ui/Toast';
 
 interface Lista {
   id: string;
@@ -59,6 +62,7 @@ const parseCSV = (text: string): Record<string, string>[] => {
 const ListasTrabajo: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { toast } = useToast();
   const [listas, setListas] = useState<Lista[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +73,6 @@ const ListasTrabajo: React.FC = () => {
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
-  const [importResult, setImportResult] = useState<{ type: 'success' | 'warning'; title: string; details?: string[] } | null>(null);
 
   // Delete lista
   const [deletingLista, setDeletingLista] = useState<Lista | null>(null);
@@ -186,23 +189,15 @@ const ListasTrabajo: React.FC = () => {
         const hasWarnings = warnings.length > 0 || syncResult.creadasSinRas > 0;
 
         if (hasWarnings) {
-          setImportResult({
-            type: 'warning',
-            title: `Lista creada con ${itemsToInsert.length} registros`,
-            details: [
-              ...warnings.map(w => `Producto "${w}" no reconocido, se importó sin carrera`),
-              ...syncDetails,
-            ],
-          });
+          toast('warning', `Lista creada con ${itemsToInsert.length} registros`, [
+            ...warnings.map(w => `Producto "${w}" no reconocido, se importó sin carrera`),
+            ...syncDetails,
+          ]);
         } else {
-          setImportResult({
-            type: 'success',
-            title: `Lista creada con ${itemsToInsert.length} registros`,
-            details: syncDetails.length > 0 ? syncDetails : undefined,
-          });
+          toast('success', `Lista creada con ${itemsToInsert.length} registros`, syncDetails.length > 0 ? syncDetails : undefined);
         }
       } else {
-        setImportResult({ type: 'success', title: 'Lista creada (vacía)' });
+        toast('success', 'Lista creada (vacía)');
       }
 
       setShowNewModal(false);
@@ -273,27 +268,9 @@ const ListasTrabajo: React.FC = () => {
       {error && (
         <div className="relative bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 font-medium mb-4">
           {error}
-          <button onClick={() => setError(null)} className="absolute top-2.5 right-3 opacity-50 hover:opacity-100 text-lg leading-none">&times;</button>
+          <button onClick={() => setError(null)} aria-label="Cerrar error" className="absolute top-2.5 right-3 opacity-50 hover:opacity-100 text-lg leading-none">&times;</button>
         </div>
       )}
-      {importResult && (
-        <div className={`relative border rounded-xl px-4 py-3 text-sm mb-4 ${
-          importResult.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-amber-50 border-amber-200 text-amber-800'
-        }`}>
-          <button onClick={() => setImportResult(null)} className="absolute top-2.5 right-3 opacity-50 hover:opacity-100 text-lg leading-none">&times;</button>
-          <div className="flex items-center gap-2 font-bold pr-6">
-            {importResult.type === 'success' && <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>}
-            {importResult.type === 'warning' && <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>}
-            {importResult.title}
-          </div>
-          {importResult.details && importResult.details.length > 0 && (
-            <ul className="mt-2 space-y-0.5 text-xs opacity-80">
-              {importResult.details.map((d, i) => <li key={i}>{d}</li>)}
-            </ul>
-          )}
-        </div>
-      )}
-
       {/* Contenido */}
       {loading ? (
         <div className="flex items-center justify-center min-h-[200px]">
@@ -358,80 +335,65 @@ const ListasTrabajo: React.FC = () => {
       )}
 
       {/* Modal nueva lista */}
-      {showNewModal && (
-        <>
-          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => !importing && setShowNewModal(false)} />
-          <div className="fixed inset-0 z-50 overflow-y-auto pointer-events-none">
-            <div className="min-h-full flex items-start justify-center py-8 px-4">
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg pointer-events-auto animate-in zoom-in-95 duration-200">
-                <form onSubmit={handleCreate}>
-                  <div className="px-8 py-6 bg-blue-600 text-white rounded-t-2xl">
-                    <h3 className="text-xl font-bold">Nueva Lista de Trabajo</h3>
-                    <p className="text-sm opacity-80">Creá una nueva lista e importá registros desde un CSV</p>
-                  </div>
-                  <div className="p-8 space-y-5">
-                    {importError && (
-                      <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 font-medium">{importError}</div>
-                    )}
-                    <div>
-                      <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Nombre de la lista *</label>
-                      <input
-                        value={newNombre}
-                        onChange={e => setNewNombre(e.target.value)}
-                        required
-                        placeholder="ej: Zoho Marzo 2026"
-                        className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Archivo CSV (opcional)</label>
-                      <input
-                        type="file"
-                        accept=".csv"
-                        onChange={e => setCsvFile(e.target.files?.[0] || null)}
-                        className="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
-                      />
-                      <p className="text-[11px] text-gray-400 mt-1.5">
-                        Columnas obligatorias: <span className="font-semibold">Nombre de Trato</span>, <span className="font-semibold">Producto</span>. Podés importar después si preferís.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="px-8 py-4 bg-gray-50 rounded-b-2xl flex justify-end gap-3">
-                    <button type="button" onClick={() => setShowNewModal(false)} disabled={importing} className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-all disabled:opacity-50">Cancelar</button>
-                    <button type="submit" disabled={importing} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center gap-2">
-                      {importing ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Creando...</>) : 'Crear Lista'}
-                    </button>
-                  </div>
-                </form>
-              </div>
+      <Modal
+        open={showNewModal}
+        onClose={() => !importing && setShowNewModal(false)}
+        title="Nueva Lista de Trabajo"
+        subtitle="Creá una nueva lista e importá registros desde un CSV"
+        headerColor
+        preventClose={importing}
+        footer={
+          <>
+            <button type="button" onClick={() => setShowNewModal(false)} disabled={importing} className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-all disabled:opacity-50">Cancelar</button>
+            <button type="submit" form="nueva-lista-form" disabled={importing} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center gap-2">
+              {importing ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Creando...</>) : 'Crear Lista'}
+            </button>
+          </>
+        }
+      >
+        <form id="nueva-lista-form" onSubmit={handleCreate}>
+          <div className="p-8 space-y-5">
+            {importError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 font-medium">{importError}</div>
+            )}
+            <div>
+              <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Nombre de la lista *</label>
+              <input
+                value={newNombre}
+                onChange={e => setNewNombre(e.target.value)}
+                required
+                placeholder="ej: Zoho Marzo 2026"
+                className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Archivo CSV (opcional)</label>
+              <input
+                type="file"
+                accept=".csv"
+                onChange={e => setCsvFile(e.target.files?.[0] || null)}
+                className="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+              />
+              <p className="text-[11px] text-gray-400 mt-1.5">
+                Columnas obligatorias: <span className="font-semibold">Nombre de Trato</span>, <span className="font-semibold">Producto</span>. Podés importar después si preferís.
+              </p>
             </div>
           </div>
-        </>
-      )}
+        </form>
+      </Modal>
 
       {/* Modal eliminar lista */}
-      {deletingLista && (
-        <>
-          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => !deleting && setDeletingLista(null)} />
-          <div className="fixed inset-0 z-50 overflow-y-auto pointer-events-none">
-            <div className="min-h-full flex items-center justify-center py-8 px-4">
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md pointer-events-auto animate-in zoom-in-95 duration-200">
-                <div className="p-8">
-                  <h3 className="text-lg font-bold text-gray-900 mb-2">Eliminar lista</h3>
-                  <p className="text-gray-500 text-sm">¿Confirmas que querés eliminar esta lista y todos sus registros? La acción no se puede deshacer.</p>
-                  <p className="mt-3 font-bold text-gray-800 text-sm bg-gray-50 rounded-lg px-3 py-2">{deletingLista.nombre} ({deletingLista.count} registros)</p>
-                </div>
-                <div className="px-8 py-4 bg-gray-50 rounded-b-2xl flex justify-end gap-3">
-                  <button onClick={() => setDeletingLista(null)} disabled={deleting} className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-all disabled:opacity-50">Cancelar</button>
-                  <button onClick={handleDeleteLista} disabled={deleting} className="bg-red-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-red-700 transition-all disabled:opacity-50">
-                    {deleting ? 'Eliminando...' : 'Eliminar'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+      <ConfirmDialog
+        open={!!deletingLista}
+        onClose={() => !deleting && setDeletingLista(null)}
+        onConfirm={handleDeleteLista}
+        title="Eliminar lista"
+        message="¿Confirmas que querés eliminar esta lista y todos sus registros? La acción no se puede deshacer."
+        detail={deletingLista ? `${deletingLista.nombre} (${deletingLista.count} registros)` : undefined}
+        confirmLabel="Eliminar"
+        danger
+        loading={deleting}
+      />
     </div>
   );
 };

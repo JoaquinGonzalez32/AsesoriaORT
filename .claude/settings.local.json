@@ -11,7 +11,8 @@
       "Bash(npx supabase:*)",
       "Bash(find:*)",
       "Bash(xxd:*)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(node scripts/seed-test-data.mjs)"
     ]
   }
 }

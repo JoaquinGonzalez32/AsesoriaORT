@@ -4,6 +4,11 @@ import { RAS, Oportunidad, ModalidadRAS } from '../types';
 import { PieChart, Pie, BarChart, Bar, XAxis, YAxis, Cell, ResponsiveContainer, Tooltip, LabelList } from 'recharts';
 import { exportChartsAsImage, exportChartsAsCSV, ChartData } from '../lib/exportChart';
 import InfoTooltip from './InfoTooltip';
+import { AGENTES_RAS as AGENTES_RAS_SHARED, AGENTE_COLORS as AGENTE_COLORS_SHARED, CARRERA_HEX as CARRERA_HEX_SHARED, CARRERA_FALLBACK as CARRERA_FALLBACK_SHARED, MESES as MESES_SHARED, CARRERAS_OPTIONS } from '../lib/shared-constants';
+import Modal from './ui/Modal';
+import ConfirmDialog from './ui/ConfirmDialog';
+import Pagination from './ui/Pagination';
+import { useToast } from './ui/Toast';
 
 interface RasesManagerProps {
   rases: RAS[];
@@ -14,16 +19,10 @@ interface RasesManagerProps {
   onUpdateOpp?: (updated: Oportunidad) => Promise<void>;
 }
 
-const AGENTES_RAS = [
-  'Natalia Benarducci', 'Mariana Muzi', 'Bruno Arce', 'Diego Miranda',
-  'Alejandro Erramun', 'Lucia Nazur', 'Fabian Barros', 'Maria Podesta',
-  'Fernanda Nuñez', 'Pablo Pirotto', 'Daniel Dominguez'
-];
-
-const CARRERAS = ['LV', 'WY', 'LT', 'LD', 'YN', 'LG', 'VD', 'UI', 'GF', 'WE'];
 
 const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd, onUpdate, onDelete, onUpdateOpp }) => {
   const navigateToOpp = useNavigate();
+  const { toast } = useToast();
   const [filter, setFilter] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [oppSearch, setOppSearch] = useState('');
@@ -51,13 +50,6 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('list');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const MESES = [
-    { val: '01', name: 'Enero' }, { val: '02', name: 'Febrero' }, { val: '03', name: 'Marzo' },
-    { val: '04', name: 'Abril' }, { val: '05', name: 'Mayo' }, { val: '06', name: 'Junio' },
-    { val: '07', name: 'Julio' }, { val: '08', name: 'Agosto' }, { val: '09', name: 'Septiembre' },
-    { val: '10', name: 'Octubre' }, { val: '11', name: 'Noviembre' }, { val: '12', name: 'Diciembre' }
-  ];
-
   const oppFaseMap = useMemo(() => {
     const map: Record<string, string> = {};
     opportunities.forEach(o => { map[o.opp_id] = o.fase_oportunidad; });
@@ -78,6 +70,7 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
     setFilter(''); setTituloFilter(''); setAgenteFilter('');
     setModalidadFilter(''); setCarreraFilter(''); setEstadoFilter('');
     setDateFrom(''); setDateTo(''); setMonthFilter('');
+    setPage(1);
   };
 
   const activeRases = useMemo(() => {
@@ -99,6 +92,11 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
     });
   }, [rases, filter, tituloFilter, agenteFilter, modalidadFilter, carreraFilter, estadoFilter, dateFrom, dateTo, monthFilter]);
 
+  const PAGE_SIZE = 30;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.ceil(activeRases.length / PAGE_SIZE);
+  const pagedRases = useMemo(() => activeRases.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [activeRases, page]);
+
   const FASE_STYLE: Record<string, string> = {
     'Interesado': 'bg-blue-100 text-blue-700',
     'Evaluando': 'bg-blue-50 text-blue-500',
@@ -107,12 +105,6 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
     'Promesa de Inscripción': 'bg-green-100 text-green-700',
     'Inscripto': 'bg-green-200 text-green-800',
   };
-  const AGENTE_COLORS = ['#2563eb', '#7c3aed', '#0891b2', '#059669', '#d97706', '#dc2626', '#4f46e5', '#0d9488', '#ca8a04', '#be185d', '#6d28d9'];
-  const CARRERA_HEX: Record<string, string> = {
-    'LV': '#0ea5e9', 'WY': '#8b5cf6', 'LT': '#f43f5e', 'LD': '#14b8a6', 'YN': '#f97316',
-    'LG': '#6366f1', 'VD': '#ec4899', 'UI': '#06b6d4', 'GF': '#a855f7', 'WE': '#eab308',
-  };
-  const CARRERA_FALLBACK = ['#0ea5e9', '#8b5cf6', '#f43f5e', '#14b8a6', '#f97316', '#6366f1', '#ec4899', '#06b6d4', '#a855f7', '#eab308'];
 
   const stats = useMemo(() => {
     const total = activeRases.length;
@@ -168,7 +160,7 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
         });
         importedCount++;
       }
-      alert(`Se importaron ${importedCount} reuniones correctamente.`);
+      toast('success', `Se importaron ${importedCount} reuniones correctamente.`);
       if (fileInputRef.current) fileInputRef.current.value = '';
     };
     reader.readAsText(file);
@@ -267,6 +259,7 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
             <button
               onClick={() => setShowActionsMenu(p => !p)}
               className="bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl font-bold shadow-sm hover:bg-gray-50 transition-all text-sm active:scale-95 flex items-center gap-2"
+              aria-label="Menu de acciones"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
             </button>
@@ -278,8 +271,8 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
                     onClick={() => {
                       const charts: ChartData[] = [
                         { title: 'Modalidad', data: stats.pieData.map(d => ({ name: d.name, value: d.value, color: d.color })), type: 'pie' },
-                        { title: 'RAS por Agente', data: stats.agenteData.map((d, i) => ({ ...d, color: AGENTE_COLORS[i % AGENTE_COLORS.length] })), type: 'bar-horizontal' },
-                        ...(stats.carreraData.length > 0 ? [{ title: 'RAS por Carrera', data: stats.carreraData.map((d, i) => ({ ...d, color: CARRERA_HEX[d.name] || CARRERA_FALLBACK[i % CARRERA_FALLBACK.length] })), type: 'bar' as const }] : []),
+                        { title: 'RAS por Agente', data: stats.agenteData.map((d, i) => ({ ...d, color: AGENTE_COLORS_SHARED[i % AGENTE_COLORS_SHARED.length] })), type: 'bar-horizontal' },
+                        ...(stats.carreraData.length > 0 ? [{ title: 'RAS por Carrera', data: stats.carreraData.map((d, i) => ({ ...d, color: CARRERA_HEX_SHARED[d.name] || CARRERA_FALLBACK_SHARED[i % CARRERA_FALLBACK_SHARED.length] })), type: 'bar' as const }] : []),
                       ];
                       exportChartsAsImage(charts, 'rases_graficas');
                       setShowActionsMenu(false);
@@ -320,6 +313,7 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
             <button
               onClick={openAddModal}
               className="bg-green-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-green-700 transition-all flex items-center gap-2 active:scale-95"
+              aria-label="Agendar nueva RAS"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Agendar RAS
@@ -396,7 +390,7 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
                 <Tooltip cursor={{fill: 'transparent'}} contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '10px'}} />
                 <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={10} animationDuration={500}>
                   {stats.agenteData.map((_, index) => (
-                    <Cell key={`ag-${index}`} fill={AGENTE_COLORS[index % AGENTE_COLORS.length]} />
+                    <Cell key={`ag-${index}`} fill={AGENTE_COLORS_SHARED[index % AGENTE_COLORS_SHARED.length]} />
                   ))}
                   <LabelList dataKey="value" position="right" style={{ fontSize: '10px', fontWeight: 800, fill: '#6b7280' }} />
                 </Bar>
@@ -406,7 +400,7 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
           <div className="flex flex-wrap gap-3 mt-2 max-h-10 overflow-y-auto">
             {stats.agenteData.map((d, i) => (
               <div key={i} className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full" style={{backgroundColor: AGENTE_COLORS[i % AGENTE_COLORS.length]}}></span>
+                <span className="w-2 h-2 rounded-full" style={{backgroundColor: AGENTE_COLORS_SHARED[i % AGENTE_COLORS_SHARED.length]}}></span>
                 <span className="text-[9px] font-black text-gray-400 uppercase">{d.name}</span>
               </div>
             ))}
@@ -428,7 +422,7 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
                 <Tooltip cursor={{fill: 'transparent'}} contentStyle={{fontSize: '10px', borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'}} />
                 <Bar dataKey="value" radius={[4, 4, 0, 0]} animationDuration={500} maxBarSize={36}>
                   {stats.carreraData.map((d, index) => (
-                    <Cell key={`cr-${index}`} fill={CARRERA_HEX[d.name] || CARRERA_FALLBACK[index % CARRERA_FALLBACK.length]} />
+                    <Cell key={`cr-${index}`} fill={CARRERA_HEX_SHARED[d.name] || CARRERA_FALLBACK_SHARED[index % CARRERA_FALLBACK_SHARED.length]} />
                   ))}
                   <LabelList dataKey="value" position="top" style={{ fontSize: '11px', fontWeight: 800, fill: '#374151' }} />
                 </Bar>
@@ -482,7 +476,7 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
             <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Mes</label>
             <select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} className={`bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold cursor-pointer ${monthFilter ? 'text-blue-700' : 'text-gray-700'}`}>
               <option value="">Todos</option>
-              {MESES.map(m => <option key={m.val} value={m.val}>{m.name}</option>)}
+              {MESES_SHARED.map(m => <option key={m.val} value={m.val}>{m.name}</option>)}
             </select>
           </div>
           <div className="relative">
@@ -557,7 +551,7 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
         </div>
       ) : viewMode === 'cards' ? (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {activeRases.map((ras) => (
+        {pagedRases.map((ras) => (
             <div key={ras.ras_id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow group flex flex-col">
               <div className="bg-blue-600 px-3 py-2.5 text-white">
                 <div className="flex justify-between items-center mb-1">
@@ -623,7 +617,7 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
               </tr>
             </thead>
             <tbody>
-              {activeRases.map((ras) => (
+              {pagedRases.map((ras) => (
                 <tr key={ras.ras_id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                   <td className="px-5 py-3 text-xs font-bold text-gray-600 whitespace-nowrap">{new Date(ras.fecha_hora).toLocaleDateString('es-ES')}</td>
                   <td className="px-5 py-3 text-xs font-bold text-gray-900 max-w-[200px] truncate">{ras.titulo}</td>
@@ -661,6 +655,8 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
       </div>
       )}
 
+      <Pagination page={page} totalPages={totalPages} totalItems={activeRases.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
+
       {/* Edit Modal */}
       {rasToEdit && (
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md flex items-center justify-center z-[70] p-4 animate-in fade-in duration-300">
@@ -681,7 +677,7 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
                     <div>
                       <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">¿Quien hace RAS?</label>
                       <select name="agente_nombre" defaultValue={rasToEdit.agente_nombre} required className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold cursor-pointer">
-                        {AGENTES_RAS.map(a => <option key={a} value={a}>{a}</option>)}
+                        {AGENTES_RAS_SHARED.map(a => <option key={a} value={a}>{a}</option>)}
                       </select>
                     </div>
                   </div>
@@ -700,7 +696,7 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
                       <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Carrera</label>
                       <select name="carrera" defaultValue={rasToEdit.carrera} className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold cursor-pointer">
                         <option value="">Sin carrera</option>
-                        {CARRERAS.map(c => <option key={c} value={c}>{c}</option>)}
+                        {CARRERAS_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
                   </div>
@@ -739,7 +735,7 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
                             <p className="text-[10px] text-gray-400 mt-0.5 truncate">{selectedOpp.nombre_trato}</p>
                           )}
                         </div>
-                        <button type="button" onClick={() => setSelectedOpp(null)} className="text-gray-400 hover:text-red-500 transition-colors">
+                        <button type="button" onClick={() => setSelectedOpp(null)} className="text-gray-400 hover:text-red-500 transition-colors" aria-label="Deseleccionar oportunidad">
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                         </button>
                       </div>
@@ -806,7 +802,7 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
                         className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold cursor-pointer"
                       >
                         <option value="">Seleccionar...</option>
-                        {AGENTES_RAS.map(a => <option key={a} value={a}>{a}</option>)}
+                        {AGENTES_RAS_SHARED.map(a => <option key={a} value={a}>{a}</option>)}
                       </select>
                     </div>
                     <div>

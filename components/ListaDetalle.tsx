@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { syncListaItemsWithOportunidades } from '../lib/syncListaOportunidades';
 import InfoTooltip from './InfoTooltip';
+import Breadcrumbs from './ui/Breadcrumbs';
+import { ROUTES } from '../constants';
 
 interface ListaDeTrabajoItem {
   id: string;
@@ -299,10 +301,15 @@ const ListaDetalle: React.FC = () => {
 
   return (
     <div>
+      <Breadcrumbs items={[
+        { label: 'Listas de Trabajo', to: ROUTES.LISTAS_TRABAJO },
+        { label: lista?.nombre || 'Cargando...' },
+      ]} />
+
       {/* Cabecera */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/listas-de-trabajo')} className="text-gray-400 hover:text-gray-700 transition-colors p-1.5 rounded-lg hover:bg-gray-100">
+          <button onClick={() => navigate('/listas-de-trabajo')} aria-label="Volver a listas de trabajo" className="text-gray-400 hover:text-gray-700 transition-colors p-1.5 rounded-lg hover:bg-gray-100">
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
           </button>
           <div>
@@ -347,18 +354,18 @@ const ListaDetalle: React.FC = () => {
       {error && (
         <div className="relative bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 font-medium mb-4">
           {error}
-          <button onClick={() => setError(null)} className="absolute top-2.5 right-3 opacity-50 hover:opacity-100 text-lg leading-none">&times;</button>
+          <button onClick={() => setError(null)} aria-label="Cerrar mensaje de error" className="absolute top-2.5 right-3 opacity-50 hover:opacity-100 text-lg leading-none">&times;</button>
         </div>
       )}
       {success && (
         <div className="relative bg-green-50 border border-green-200 text-green-700 text-sm rounded-xl px-4 py-3 font-medium mb-4">
           {success}
-          <button onClick={() => setSuccess(null)} className="absolute top-2.5 right-3 opacity-50 hover:opacity-100 text-lg leading-none">&times;</button>
+          <button onClick={() => setSuccess(null)} aria-label="Cerrar mensaje de éxito" className="absolute top-2.5 right-3 opacity-50 hover:opacity-100 text-lg leading-none">&times;</button>
         </div>
       )}
       {importWarnings.length > 0 && (
         <div className="relative bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-xl px-4 py-3 mb-4">
-          <button onClick={() => setImportWarnings([])} className="absolute top-2.5 right-3 opacity-50 hover:opacity-100 text-lg leading-none">&times;</button>
+          <button onClick={() => setImportWarnings([])} aria-label="Cerrar advertencias" className="absolute top-2.5 right-3 opacity-50 hover:opacity-100 text-lg leading-none">&times;</button>
           <p className="font-bold mb-1 pr-6">Productos no reconocidos — se importaron con carrera vacía:</p>
           <ul className="list-disc pl-5 space-y-0.5">
             {importWarnings.map(w => <li key={w}>{w}</li>)}

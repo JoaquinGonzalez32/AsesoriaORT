@@ -3,6 +3,9 @@ import { Lead, ResultadoLlamada, HorarioLlamada, ModalidadRAS, FaseOportunidad, 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { exportChartsAsImage, exportChartsAsCSV, ChartData } from '../lib/exportChart';
 import { supabase } from '../lib/supabase';
+import { CARRERAS_OPTIONS, MESES, RESULTADO_HEX } from '../lib/shared-constants';
+import Pagination from './ui/Pagination';
+import { useToast } from './ui/Toast';
 import InfoTooltip from './InfoTooltip';
 
 interface LeadsManagerProps {
@@ -14,7 +17,11 @@ interface LeadsManagerProps {
   onRefresh?: () => void;
 }
 
+const PAGE_SIZE = 30;
+
 const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onDelete, onConvert, onRefresh }) => {
+  const { toast } = useToast();
+  const [page, setPage] = useState(1);
   const [filter, setFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [monthFilter, setMonthFilter] = useState<string>(String(new Date().getMonth() + 1).padStart(2, '0'));
@@ -57,24 +64,6 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
     [ResultadoLlamada.LlamarMasTarde]: 'bg-amber-100 text-amber-700',
   };
 
-  const RESULTADO_HEX: Record<string, string> = {
-    [ResultadoLlamada.SinGestion]: '#94a3b8',
-    [ResultadoLlamada.PrimerContacto]: '#3b82f6',
-    [ResultadoLlamada.Contactado]: '#22c55e',
-    [ResultadoLlamada.Interesado]: '#16a34a',
-    [ResultadoLlamada.NoInteresado]: '#ef4444',
-    [ResultadoLlamada.NumeroIncorrecto]: '#f97316',
-    [ResultadoLlamada.LlamarMasTarde]: '#60a5fa',
-  };
-
-  const CARRERAS_OPTIONS = ['LV', 'WY', 'LT', 'LD', 'YN', 'LG', 'VD', 'UI', 'GF', 'WE'];
-  const MESES = [
-    { val: '01', name: 'Enero' }, { val: '02', name: 'Febrero' }, { val: '03', name: 'Marzo' },
-    { val: '04', name: 'Abril' }, { val: '05', name: 'Mayo' }, { val: '06', name: 'Junio' },
-    { val: '07', name: 'Julio' }, { val: '08', name: 'Agosto' }, { val: '09', name: 'Septiembre' },
-    { val: '10', name: 'Octubre' }, { val: '11', name: 'Noviembre' }, { val: '12', name: 'Diciembre' }
-  ];
-
   const activeLeads = useMemo(() => {
     return (leads || []).filter(l => {
       const s = filter.toLowerCase();
@@ -89,6 +78,12 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
       return matchesSearch && matchesStatus && matchesMonth && matchesYear && matchesCarrera && matchesDesde && matchesHasta;
     });
   }, [leads, filter, statusFilter, monthFilter, yearFilter, carreraFilter, desdeFilter, hastaFilter]);
+
+  const totalPages = Math.ceil(activeLeads.length / PAGE_SIZE);
+  const pagedLeads = useMemo(() => activeLeads.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [activeLeads, page]);
+
+  // Reset page when filters change
+  useEffect(() => { setPage(1); }, [filter, statusFilter, monthFilter, yearFilter, carreraFilter, desdeFilter, hastaFilter]);
 
   const stats = useMemo(() => {
     const total = activeLeads.length;
@@ -357,7 +352,7 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
       closeModal();
     } catch (err: any) {
       console.error('Error al guardar lead:', err);
-      alert('Error al guardar: ' + (err?.message || 'Error desconocido'));
+      toast('error', 'Error al guardar: ' + (err?.message || 'Error desconocido'));
     } finally {
       setIsSubmitting(false);
     }
@@ -381,18 +376,18 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
           <span className="w-1.5 h-5 bg-blue-600 rounded-full"></span>
           <span className="text-sm font-bold text-gray-900">Gráficas</span>
         </div>
-        <svg className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${showCharts ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+        <svg className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${showCharts ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
       {showCharts && (
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         <div className="lg:col-span-1 grid grid-cols-1 gap-4">
           <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Prospectos Filtrados</p>
+            <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Prospectos Filtrados</p>
             <h4 className="text-3xl font-black text-gray-900">{stats.total}</h4>
             <p className="text-xs text-blue-600 font-bold mt-1">de {leads.length} totales</p>
           </div>
           <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 flex items-center gap-1">Efectividad del Filtro <InfoTooltip text="Porcentaje de leads que fueron contactados o mostraron interés sobre el total filtrado. Indica qué tan efectiva es la gestión de contacto." /></p>
+            <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1 flex items-center gap-1">Efectividad del Filtro <InfoTooltip text="Porcentaje de leads que fueron contactados o mostraron interés sobre el total filtrado. Indica qué tan efectiva es la gestión de contacto." /></p>
             <h4 className="text-3xl font-black text-green-600">{stats.total > 0 ? Math.round((stats.contactados / stats.total) * 100) : 0}%</h4>
             <div className="w-full bg-gray-100 rounded-full h-2 mt-3 overflow-hidden">
               <div
@@ -450,8 +445,9 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
               <button
                 onClick={() => setShowActionsMenu(p => !p)}
                 className="bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl font-bold shadow-sm hover:bg-gray-50 transition-all text-sm active:scale-95 flex items-center gap-2"
+                aria-label="Menu de acciones"
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
               </button>
               {showActionsMenu && (
                 <>
@@ -546,25 +542,25 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
               <div className="absolute z-50 mt-1 right-0 bg-white border border-gray-200 rounded-2xl shadow-xl p-4 min-w-[300px]">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Desde</label>
+                    <label className="text-xs font-black uppercase text-gray-400 mb-1.5 block">Desde</label>
                     <input type="date" value={desdeFilter} onChange={(e) => setDesdeFilter(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm w-full focus:ring-2 focus:ring-blue-500 outline-none" />
                   </div>
                   <div>
-                    <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Hasta</label>
+                    <label className="text-xs font-black uppercase text-gray-400 mb-1.5 block">Hasta</label>
                     <input type="date" value={hastaFilter} onChange={(e) => setHastaFilter(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm w-full focus:ring-2 focus:ring-blue-500 outline-none" />
                   </div>
                 </div>
                 <div className="flex gap-2 mt-3">
                   {(desdeFilter || hastaFilter) && (
-                    <button type="button" onClick={() => { setDesdeFilter(''); setHastaFilter(''); }} className="flex-1 text-[10px] font-black uppercase text-red-500 hover:bg-red-50 py-2 rounded-xl border border-red-100 transition-colors">Limpiar</button>
+                    <button type="button" onClick={() => { setDesdeFilter(''); setHastaFilter(''); }} className="flex-1 text-xs font-black uppercase text-red-500 hover:bg-red-50 py-2 rounded-xl border border-red-100 transition-colors">Limpiar</button>
                   )}
-                  <button type="button" onClick={() => setShowDatePicker(false)} className="flex-1 text-[10px] font-black uppercase text-white bg-blue-600 hover:bg-blue-700 py-2 rounded-xl transition-colors">Listo</button>
+                  <button type="button" onClick={() => setShowDatePicker(false)} className="flex-1 text-xs font-black uppercase text-white bg-blue-600 hover:bg-blue-700 py-2 rounded-xl transition-colors">Listo</button>
                 </div>
               </div>
             )}
           </div>
           {(filter || statusFilter || monthFilter || yearFilter || carreraFilter || desdeFilter || hastaFilter) && (
-            <button onClick={() => { setFilter(''); setStatusFilter(''); setMonthFilter(''); setYearFilter(''); setCarreraFilter(''); setDesdeFilter(''); setHastaFilter(''); }} className="text-gray-400 hover:text-red-500 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors active:scale-95 whitespace-nowrap">
+            <button onClick={() => { setFilter(''); setStatusFilter(''); setMonthFilter(''); setYearFilter(''); setCarreraFilter(''); setDesdeFilter(''); setHastaFilter(''); setPage(1); }} className="text-gray-400 hover:text-red-500 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors active:scale-95 whitespace-nowrap">
               Reiniciar filtros
             </button>
           )}
@@ -584,7 +580,7 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
           importResult.type === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-800' :
           'bg-red-50 border-red-200 text-red-800'
         }`}>
-          <button onClick={() => setImportResult(null)} className="absolute top-2.5 right-3 opacity-50 hover:opacity-100 transition-opacity text-lg leading-none">&times;</button>
+          <button onClick={() => setImportResult(null)} className="absolute top-2.5 right-3 opacity-50 hover:opacity-100 transition-opacity text-lg leading-none" aria-label="Cerrar notificacion">&times;</button>
           <div className="flex items-center gap-2 font-bold pr-6">
             {importResult.type === 'success' && <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>}
             {importResult.type === 'warning' && <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>}
@@ -601,7 +597,7 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
         <table className="w-full text-left">
-          <thead className="bg-gray-50 text-gray-500 text-[10px] font-black uppercase tracking-widest">
+          <thead className="bg-gray-50 text-gray-500 text-xs font-black uppercase tracking-widest">
             <tr>
               <th className="p-4">Fecha</th>
               <th className="p-4">Nombre</th>
@@ -613,8 +609,8 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
             </tr>
           </thead>
           <tbody>
-            {activeLeads.length > 0 ? (
-              activeLeads.map(l => (
+            {pagedLeads.length > 0 ? (
+              pagedLeads.map(l => (
                 <tr key={l.lead_id} className="border-b border-gray-100 text-sm hover:bg-gray-50 transition-colors">
                   <td className="p-4 text-gray-400 font-medium">{new Date(l.fecha_lead + 'T00:00:00').toLocaleDateString('es-UY', { day: '2-digit', month: '2-digit', year: 'numeric' })}</td>
                   <td className="p-4 font-bold text-gray-900">{l.nombre}</td>
@@ -653,8 +649,9 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
                           }
                         }}
                         className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all"
+                        aria-label={`Opciones para ${l.nombre}`}
                       >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
                       </button>
                     </div>
                   </td>
@@ -669,6 +666,7 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
             )}
           </tbody>
         </table>
+        <Pagination page={page} totalPages={totalPages} totalItems={activeLeads.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
       </div>
       </div>
 
@@ -712,34 +710,34 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
                   <div className="p-8 space-y-5 overflow-y-auto flex-1 min-h-0">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                       <div className="md:col-span-2">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Nombre Completo *</label>
+                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-1">Nombre Completo *</label>
                         <input name="nombre" required defaultValue={editingLead?.nombre} placeholder="Ej: Juan Pérez" className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
                       </div>
                       <div>
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Carrera Interés *</label>
+                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-1">Carrera Interés *</label>
                         <select name="carrera_interes" required defaultValue={editingLead?.carrera_interes} className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm font-bold bg-white focus:ring-2 focus:ring-blue-500 outline-none">
                           {CARRERAS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
                         </select>
                       </div>
                       <div>
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Resultado Llamada</label>
+                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-1">Resultado Llamada</label>
                         <select name="resultado_llamada" defaultValue={editingLead?.resultado_llamada} className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm font-bold text-sky-700 bg-sky-50 focus:ring-2 focus:ring-blue-500 outline-none">
                           {Object.values(ResultadoLlamada).map(r => <option key={r} value={r}>{r}</option>)}
                         </select>
                       </div>
                       <div>
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Intentos de Llamado</label>
+                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-1">Intentos de Llamado</label>
                         <input name="intentos_llamado" type="number" min="0" defaultValue={editingLead?.intentos_llamado ?? 1} className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none" />
                       </div>
                       <div>
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Horario Llamada</label>
+                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-1">Horario Llamada</label>
                         <select name="horario_llamada" defaultValue={editingLead?.horario_llamada || ''} className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm font-bold bg-white focus:ring-2 focus:ring-blue-500 outline-none">
                           <option value="">Sin especificar</option>
                           {Object.values(HorarioLlamada).map(h => <option key={h} value={h}>{h}</option>)}
                         </select>
                       </div>
                       <div className="md:col-span-2">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Comentario</label>
+                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-1">Comentario</label>
                         <textarea name="comentario" rows={3} defaultValue={editingLead?.comentario} className="w-full border-gray-200 border rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none bg-gray-50/50"></textarea>
                       </div>
                     </div>
@@ -832,19 +830,19 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
                   <div className="p-8 space-y-5 overflow-y-auto flex-1 min-h-0">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Cédula</label>
+                        <label className="text-xs font-black text-gray-400 uppercase block mb-1">Cédula</label>
                         <input name="cedula" placeholder="Ej: 1.234.567-8" className="w-full border-gray-200 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
                       </div>
                       <div>
-                        <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Teléfono</label>
+                        <label className="text-xs font-black text-gray-400 uppercase block mb-1">Teléfono</label>
                         <input name="telefono" placeholder="Ej: 099 123 456" className="w-full border-gray-200 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
                       </div>
                       <div>
-                        <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Mail</label>
+                        <label className="text-xs font-black text-gray-400 uppercase block mb-1">Mail</label>
                         <input name="mail" type="email" placeholder="ejemplo@mail.com" className="w-full border-gray-200 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
                       </div>
                       <div>
-                        <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">SAPE</label>
+                        <label className="text-xs font-black text-gray-400 uppercase block mb-1">SAPE</label>
                         <input name="sape" placeholder="Código SAPE" className="w-full border-gray-200 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
                       </div>
                     </div>
@@ -855,31 +853,31 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
                       </label>
                       {rasAgendada && (
                         <div className="space-y-3 pt-3 border-t border-gray-200">
-                           <div><label className="text-[10px] font-black text-blue-500 uppercase block mb-1">¿Quien hace RAS?</label><select name="ras_agente_nombre" required className="w-full border-blue-100 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white font-bold"><option value="">Seleccionar...</option><option value="Natalia Benarducci">Natalia Benarducci</option><option value="Mariana Muzi">Mariana Muzi</option><option value="Bruno Arce">Bruno Arce</option><option value="Diego Miranda">Diego Miranda</option><option value="Alejandro Erramun">Alejandro Erramun</option><option value="Lucia Nazur">Lucia Nazur</option><option value="Fabian Barros">Fabian Barros</option><option value="Maria Podesta">Maria Podesta</option><option value="Fernanda Nuñez">Fernanda Nuñez</option><option value="Pablo Pirotto">Pablo Pirotto</option><option value="Daniel Dominguez">Daniel Dominguez</option></select></div>
+                           <div><label className="text-xs font-black text-blue-500 uppercase block mb-1">¿Quien hace RAS?</label><select name="ras_agente_nombre" required className="w-full border-blue-100 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white font-bold"><option value="">Seleccionar...</option><option value="Natalia Benarducci">Natalia Benarducci</option><option value="Mariana Muzi">Mariana Muzi</option><option value="Bruno Arce">Bruno Arce</option><option value="Diego Miranda">Diego Miranda</option><option value="Alejandro Erramun">Alejandro Erramun</option><option value="Lucia Nazur">Lucia Nazur</option><option value="Fabian Barros">Fabian Barros</option><option value="Maria Podesta">Maria Podesta</option><option value="Fernanda Nuñez">Fernanda Nuñez</option><option value="Pablo Pirotto">Pablo Pirotto</option><option value="Daniel Dominguez">Daniel Dominguez</option></select></div>
                            <div className="grid grid-cols-3 gap-2">
-                              <div><label className="text-[10px] font-black text-blue-500 uppercase block mb-1">Fecha</label><input name="ras_fecha_hora" type="date" required className="w-full border-blue-100 border rounded-lg px-2 py-2 text-xs" /></div>
-                              <div><label className="text-[10px] font-black text-blue-500 uppercase block mb-1">Hora</label><select name="ras_hora" className="w-full border-blue-100 border rounded-lg px-2 py-2 text-xs"><option value="">--:--</option>{Array.from({length: 48}, (_, i) => {const h = String(Math.floor(i/2)).padStart(2,'0'); const m = i%2===0?'00':'30'; return `${h}:${m}`;}).map(t => <option key={t} value={t}>{t}</option>)}</select></div>
-                              <div><label className="text-[10px] font-black text-blue-500 uppercase block mb-1">Modalidad</label><select name="ras_modalidad" className="w-full border-blue-100 border rounded-lg px-2 py-2 text-xs">{Object.values(ModalidadRAS).map(m => <option key={m} value={m}>{m}</option>)}</select></div>
+                              <div><label className="text-xs font-black text-blue-500 uppercase block mb-1">Fecha</label><input name="ras_fecha_hora" type="date" required className="w-full border-blue-100 border rounded-lg px-2 py-2 text-xs" /></div>
+                              <div><label className="text-xs font-black text-blue-500 uppercase block mb-1">Hora</label><select name="ras_hora" className="w-full border-blue-100 border rounded-lg px-2 py-2 text-xs"><option value="">--:--</option>{Array.from({length: 48}, (_, i) => {const h = String(Math.floor(i/2)).padStart(2,'0'); const m = i%2===0?'00':'30'; return `${h}:${m}`;}).map(t => <option key={t} value={t}>{t}</option>)}</select></div>
+                              <div><label className="text-xs font-black text-blue-500 uppercase block mb-1">Modalidad</label><select name="ras_modalidad" className="w-full border-blue-100 border rounded-lg px-2 py-2 text-xs">{Object.values(ModalidadRAS).map(m => <option key={m} value={m}>{m}</option>)}</select></div>
                            </div>
                         </div>
                       )}
                     </div>
                     <div className="grid grid-cols-3 gap-4">
                       <div>
-                        <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Proceso Inicio</label>
+                        <label className="text-xs font-black text-gray-400 uppercase block mb-1">Proceso Inicio</label>
                         <select name="proceso_inicio" defaultValue={(() => { const m = new Date().getMonth() + 1, y = new Date().getFullYear(); if (m >= 9) return `Marzo ${y+1}`; if (m >= 4) return `Agosto ${y}`; return `Marzo ${y}`; })()} className="w-full border-gray-200 border rounded-lg px-3 py-2 text-sm font-bold">
                            <option value="">Seleccionar...</option>
                            {[2023,2024,2025,2026,2027,2028,2029,2030].flatMap(y => [`Marzo ${y}`, `Agosto ${y}`]).map(p => <option key={p} value={p}>{p}</option>)}
                         </select>
                       </div>
                       <div>
-                        <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Fase</label>
+                        <label className="text-xs font-black text-gray-400 uppercase block mb-1">Fase</label>
                         <select name="fase_oportunidad" value={convertFase} onChange={e => setConvertFase(e.target.value as FaseOportunidad)} className="w-full border-gray-200 border rounded-lg px-3 py-2 text-sm font-bold">
                            {Object.values(FaseOportunidad).map(f => <option key={f} value={f}>{f}</option>)}
                         </select>
                       </div>
                       <div>
-                        <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Tipo Liceo</label>
+                        <label className="text-xs font-black text-gray-400 uppercase block mb-1">Tipo Liceo</label>
                         <select name="liceo_tipo" className="w-full border-gray-200 border rounded-lg px-3 py-2 text-sm font-bold">
                            {Object.values(LiceoTipo).map(t => <option key={t} value={t}>{t}</option>)}
                         </select>

@@ -3,6 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Lead, Oportunidad, RAS, ResultadoLlamada, ResultadoRAS, FaseOportunidad, ModalidadRAS } from '../types';
 import { exportChartsAsImage, exportChartsAsCSV, ChartData } from '../lib/exportChart';
 import InfoTooltip from './InfoTooltip';
+import { CARRERAS_OPTIONS, MESES, PROCESO_OPTIONS, RESULTADO_HEX, AGENTE_COLORS, CARRERA_COLORS, FASE_HEX, CARRERA_HEX } from '../lib/shared-constants';
 
 interface DashboardProps {
   leads: Lead[];
@@ -10,45 +11,31 @@ interface DashboardProps {
   rases: RAS[];
 }
 
-const CARRERAS_OPTIONS = ['LV', 'WY', 'LT', 'LD', 'YN', 'LG', 'VD', 'UI', 'GF', 'WE'];
-const MESES = [
-  { val: '01', name: 'Enero' }, { val: '02', name: 'Febrero' }, { val: '03', name: 'Marzo' },
-  { val: '04', name: 'Abril' }, { val: '05', name: 'Mayo' }, { val: '06', name: 'Junio' },
-  { val: '07', name: 'Julio' }, { val: '08', name: 'Agosto' }, { val: '09', name: 'Septiembre' },
-  { val: '10', name: 'Octubre' }, { val: '11', name: 'Noviembre' }, { val: '12', name: 'Diciembre' }
-];
-const PROCESO_OPTIONS = (() => {
-  const opts: string[] = [];
-  for (let y = 2023; y <= 2030; y++) { opts.push(`Marzo ${y}`, `Agosto ${y}`); }
-  return opts;
-})();
+const StatCard = ({ title, value, sub, iconColor, highlight }: { title: string; value: number; sub: string; iconColor: string; highlight?: boolean }) => (
+  <div className={`p-6 rounded-2xl shadow-sm border flex flex-col justify-between hover:shadow-md transition-shadow group ${highlight ? 'bg-gray-50 border-gray-200 ring-1 ring-gray-200' : 'bg-white border-gray-100'}`}>
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-gray-500 font-medium text-xs uppercase tracking-wider">{title}</h3>
+        <div className={`w-3 h-3 rounded-full ${iconColor} shadow-inner group-hover:scale-125 transition-transform`}></div>
+      </div>
+      <div className={`font-black text-gray-900 ${highlight ? 'text-5xl' : 'text-4xl'}`}>{value}</div>
+    </div>
+    <div className="mt-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">{sub}</div>
+  </div>
+);
 
-const RESULTADO_HEX: Record<string, string> = {
-  [ResultadoLlamada.SinGestion]: '#94a3b8',
-  [ResultadoLlamada.PrimerContacto]: '#1d4ed8',
-  [ResultadoLlamada.Contactado]: '#15803d',
-  [ResultadoLlamada.Interesado]: '#047857',
-  [ResultadoLlamada.NoInteresado]: '#b91c1c',
-  [ResultadoLlamada.NumeroIncorrecto]: '#4b5563',
-  [ResultadoLlamada.LlamarMasTarde]: '#b45309',
-};
-const AGENTE_COLORS = ['#2563eb', '#7c3aed', '#0891b2', '#059669', '#d97706', '#dc2626', '#4f46e5', '#0d9488', '#ca8a04', '#be185d', '#6d28d9'];
-const CARRERA_COLORS = ['#9333ea', '#6366f1', '#8b5cf6', '#a855f7', '#7c3aed', '#c084fc', '#818cf8', '#a78bfa', '#d8b4fe', '#e9d5ff'];
-
-const FASE_HEX: Record<string, string> = {
-  [FaseOportunidad.Interesado]: '#3b82f6',
-  [FaseOportunidad.Evaluando]: '#60a5fa',
-  [FaseOportunidad.Contactado]: '#f59e0b',
-  [FaseOportunidad.NoInteresado]: '#ef4444',
-  [FaseOportunidad.PromesaInscripcion]: '#22c55e',
-  [FaseOportunidad.Inscripto]: '#16a34a',
-};
-
-const CARRERA_HEX: Record<string, string> = {
-  'LV': '#0ea5e9', 'WY': '#8b5cf6', 'LT': '#f43f5e', 'LD': '#14b8a6',
-  'YN': '#f97316', 'LG': '#6366f1', 'VD': '#ec4899', 'UI': '#06b6d4',
-  'GF': '#a855f7', 'WE': '#eab308',
-};
+const SectionHeader = ({ title, subtitle, open, onToggle, color }: { title: string; subtitle: string; open: boolean; onToggle: () => void; color: string }) => (
+  <button type="button" onClick={onToggle} className="w-full flex items-center justify-between bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow group">
+    <div className="flex items-center gap-3">
+      <span className={`w-1.5 h-8 rounded-full ${color}`}></span>
+      <div className="text-left">
+        <h3 className="text-lg font-bold text-gray-900">{title}</h3>
+        <p className="text-xs text-gray-400 font-medium">{subtitle}</p>
+      </div>
+    </div>
+    <svg className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>
+);
 
 const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) => {
   // ---- Global vs Month toggle ----
@@ -87,7 +74,6 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) =>
     { name: 'Nuevos (1er C)', value: globalStats.primerContacto, color: '#3b82f6' },
     { name: 'Contactados', value: globalStats.contactados, color: '#06b6d4' },
     { name: 'Interesados', value: globalStats.interesados, color: '#f59e0b' },
-    { name: 'Oportunidades', value: globalStats.totalOpps, color: '#22c55e' },
   ];
 
   // ---- Collapsible section states ----
@@ -202,32 +188,6 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) =>
   }, [filteredRases]);
 
   // ---- Helpers ----
-  const StatCard = ({ title, value, sub, iconColor, highlight }: { title: string; value: number; sub: string; iconColor: string; highlight?: boolean }) => (
-    <div className={`p-6 rounded-2xl shadow-sm border flex flex-col justify-between hover:shadow-md transition-shadow group ${highlight ? 'bg-gray-50 border-gray-200 ring-1 ring-gray-200' : 'bg-white border-gray-100'}`}>
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-gray-500 font-medium text-xs uppercase tracking-wider">{title}</h3>
-          <div className={`w-3 h-3 rounded-full ${iconColor} shadow-inner group-hover:scale-125 transition-transform`}></div>
-        </div>
-        <div className={`font-black text-gray-900 ${highlight ? 'text-5xl' : 'text-4xl'}`}>{value}</div>
-      </div>
-      <div className="mt-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">{sub}</div>
-    </div>
-  );
-
-  const SectionHeader = ({ title, subtitle, open, onToggle, color }: { title: string; subtitle: string; open: boolean; onToggle: () => void; color: string }) => (
-    <button type="button" onClick={onToggle} className="w-full flex items-center justify-between bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow group">
-      <div className="flex items-center gap-3">
-        <span className={`w-1.5 h-8 rounded-full ${color}`}></span>
-        <div className="text-left">
-          <h3 className="text-lg font-bold text-gray-900">{title}</h3>
-          <p className="text-xs text-gray-400 font-medium">{subtitle}</p>
-        </div>
-      </div>
-      <svg className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
-    </button>
-  );
-
   const EyeToggle = ({ label, visible, onToggle }: { label: string; visible: boolean; onToggle: () => void }) => (
     <button type="button" onClick={onToggle} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 border ${visible ? 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50' : 'bg-gray-100 border-gray-200 text-gray-400 line-through hover:bg-gray-200'}`}>
       {visible ? (
@@ -320,8 +280,8 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) =>
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 min-h-[450px]">
           <h3 className="text-lg font-bold mb-8 text-gray-800 flex items-center gap-2">
             <span className="w-1.5 h-6 bg-blue-600 rounded-full"></span>
-            Estado del Embudo
-            <InfoTooltip text="Visualización del embudo de conversión: desde el primer contacto hasta oportunidades generadas. Las barras muestran cuántos prospectos avanzan en cada etapa." />
+            Datos Leads
+            <InfoTooltip text="Distribución de leads por resultado de llamada: 1er Contacto, Contactados e Interesados. Muestra cuántos prospectos avanzan en cada etapa." />
           </h3>
           <div className="h-[320px]">
             <ResponsiveContainer width="100%" height="100%">
