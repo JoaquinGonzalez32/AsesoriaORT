@@ -8,6 +8,7 @@ import RasesManager from './components/RasesManager';
 import OportunidadDetalle from './components/OportunidadDetalle';
 import GestionUsuarios from './components/GestionUsuarios';
 import ListasTrabajo from './components/ListasTrabajo';
+import ListaDetalle from './components/ListaDetalle';
 import RutaProtegida from './components/RutaProtegida';
 import LoginPage from './features/auth/LoginPage';
 import RecuperarPassword from './features/auth/RecuperarPassword';
@@ -117,12 +118,13 @@ const AppLayout: React.FC = () => {
     return (
       <Routes>
         <Route path={ROUTES.DASHBOARD} element={<Dashboard leads={leads} opportunities={opportunities} rases={rases} />} />
-        <Route path={ROUTES.LEADS} element={<LeadsManager leads={leads} onAdd={handleAddLead} onUpdate={updateLead} onDelete={deleteLead} onConvert={convertToOpportunity} />} />
-        <Route path={ROUTES.OPPORTUNITIES} element={<OpportunitiesManager opportunities={opportunities} onAdd={handleAddOpp} onUpdate={updateOpp} onDelete={deleteOpp} />} />
+        <Route path={ROUTES.LEADS} element={<LeadsManager leads={leads} onAdd={handleAddLead} onUpdate={updateLead} onDelete={deleteLead} onConvert={convertToOpportunity} onRefresh={fetchLeads} />} />
+        <Route path={ROUTES.OPPORTUNITIES} element={<OpportunitiesManager opportunities={opportunities} onAdd={handleAddOpp} onUpdate={updateOpp} onDelete={deleteOpp} onRefresh={fetchOpportunities} />} />
         <Route path="/opportunities/:id" element={<OportunidadDetalle opportunities={opportunities} rases={rases} onUpdateOpp={updateOpp} onDeleteOpp={deleteOpp} onAddOpp={handleAddOpp} onAddRas={handleAddRas} onUpdateRas={updateRas} onDeleteRas={deleteRas} />} />
         <Route path={ROUTES.RASES} element={<RasesManager rases={rases} opportunities={opportunities} onAdd={handleAddRas} onUpdate={updateRas} onDelete={deleteRas} onUpdateOpp={updateOpp} />} />
         <Route path={ROUTES.USUARIOS} element={<GestionUsuarios />} />
         <Route path={ROUTES.LISTAS_TRABAJO} element={<ListasTrabajo />} />
+        <Route path="/listas-de-trabajo/:id" element={<ListaDetalle />} />
         <Route path="*" element={<Dashboard leads={leads} opportunities={opportunities} rases={rases} />} />
       </Routes>
     );

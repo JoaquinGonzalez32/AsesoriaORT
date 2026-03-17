@@ -1,5 +1,5 @@
 export enum ResultadoLlamada {
-  SinGestion = 'Sin Gestión',
+  SinGestion = 'Sin Gestion',
   PrimerContacto = '1er Contacto',
   Contactado = 'Contactado',
   NoInteresado = 'No interesado',

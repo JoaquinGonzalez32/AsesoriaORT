@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Lead, ResultadoLlamada, HorarioLlamada, ModalidadRAS, FaseOportunidad, LiceoTipo } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { exportChartsAsImage, exportChartsAsCSV, ChartData } from '../lib/exportChart';
+import { supabase } from '../lib/supabase';
 
 interface LeadsManagerProps {
   leads: Lead[];
@@ -9,9 +10,10 @@ interface LeadsManagerProps {
   onUpdate: (lead: Lead) => void;
   onDelete: (id: string) => void;
   onConvert: (lead: Lead, extra: any) => void;
+  onRefresh?: () => void;
 }
 
-const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onDelete, onConvert }) => {
+const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onDelete, onConvert, onRefresh }) => {
   const [filter, setFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [monthFilter, setMonthFilter] = useState<string>(String(new Date().getMonth() + 1).padStart(2, '0'));
@@ -111,6 +113,13 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
     return { total, contactados, chartData, chartTitle };
   }, [activeLeads, statusFilter]);
 
+  const [importando, setImportando] = useState(false);
+  const [importResult, setImportResult] = useState<{
+    type: 'success' | 'warning' | 'error';
+    title: string;
+    details?: string[];
+  } | null>(null);
+
   const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -133,65 +142,179 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
       }).map(([k, v]) => [normalizeStr(k), v])
     );
 
+    const CARRERAS_VALIDAS = ['LV', 'WY', 'LT', 'LD', 'YN', 'LG', 'VD', 'UI', 'GF', 'WE'];
+
+    const matchResultado = (raw: string): ResultadoLlamada => {
+      const n = normalizeStr(raw);
+      for (const val of Object.values(ResultadoLlamada)) {
+        if (normalizeStr(val) === n) return val;
+      }
+      return ResultadoLlamada.SinGestion;
+    };
+
+    const matchHorario = (raw: string): HorarioLlamada | null => {
+      const n = normalizeStr(raw);
+      if (!n) return null;
+      for (const val of Object.values(HorarioLlamada)) {
+        if (normalizeStr(val) === n) return val;
+      }
+      return null;
+    };
+
+    const parseFecha = (raw: string): string => {
+      let d: number | undefined, m: number | undefined, y: number | undefined;
+      const ddmmyyyy = raw.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})$/);
+      if (ddmmyyyy) { d = +ddmmyyyy[1]; m = +ddmmyyyy[2]; y = +ddmmyyyy[3]; }
+      const iso = !ddmmyyyy && raw.match(/^(\d{4})[/\-](\d{1,2})[/\-](\d{1,2})$/);
+      if (iso) { y = +iso[1]; m = +iso[2]; d = +iso[3]; }
+      if (d && m && y && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      }
+      return new Date().toISOString().split('T')[0];
+    };
+
+    setImportando(true);
     const reader = new FileReader();
     reader.onload = async (event) => {
-      const text = event.target?.result as string;
-      const lines = text.split(/\r?\n/).filter(line => line.trim());
-      if (lines.length <= 1) return;
+      try {
+        const text = event.target?.result as string;
+        const lines = text.split(/\r?\n/).filter(line => line.trim());
+        if (lines.length <= 1) { setImportando(false); return; }
 
-      const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
 
-      const requiredCols = ['Nombre', 'Primer Apellido', 'Producto'];
-      const missingCols = requiredCols.filter(col => !headers.includes(col));
-      if (missingCols.length > 0) {
-        alert(`Formato de CSV no válido. Faltan las columnas: ${missingCols.join(', ')}.\n\nEste importador solo acepta el formato de exportación externo (ZOHO).`);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-        return;
-      }
+        const isInterno = headers.includes('Fecha Lead') && headers.includes('Nombre') && headers.includes('Carrera');
+        const isZoho = headers.includes('Nombre') && headers.includes('Primer Apellido') && headers.includes('Producto');
 
-      const data = lines.slice(1).map(line => {
-        const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.trim().replace(/^"|"$/g, ''));
-        const obj: Record<string, string> = {};
-        headers.forEach((h, i) => { obj[h] = values[i] || ''; });
-        return obj;
-      });
-
-      let importedCount = 0;
-      const carrerasNoMapeadas: string[] = [];
-
-      for (const item of data) {
-        const nombre = [item['Nombre'], item['Primer Apellido']].filter(Boolean).join(' ').trim();
-        if (!nombre) continue;
-
-        const productoRaw = item['Producto'] || '';
-        const carreraCode = PRODUCTO_A_CARRERA[normalizeStr(productoRaw)] || '';
-        if (productoRaw && !carreraCode && !carrerasNoMapeadas.includes(productoRaw)) {
-          carrerasNoMapeadas.push(productoRaw);
+        if (!isInterno && !isZoho) {
+          setImportResult({
+            type: 'error',
+            title: 'Formato de CSV no válido',
+            details: ['Formatos aceptados:', '• ZOHO: columnas Nombre, Primer Apellido, Producto', '• Interno: columnas Fecha Lead, Nombre, Carrera, Resultado Llamada'],
+          });
+          setImportando(false);
+          if (fileInputRef.current) fileInputRef.current.value = '';
+          return;
         }
 
-        const estadoRaw = item['Estado de Lead'] || '';
-        const resultadoValido = Object.values(ResultadoLlamada).includes(estadoRaw as ResultadoLlamada);
-        const resultado = resultadoValido ? (estadoRaw as ResultadoLlamada) : ResultadoLlamada.SinGestion;
-
-        await onAdd({
-          nombre,
-          carrera_interes: carreraCode,
-          fecha_lead: new Date().toISOString().split('T')[0],
-          resultado_llamada: resultado,
-          horario_llamada: null,
-          intentos_llamado: 1,
-          comentario: '',
-          owner: null,
+        const data = lines.slice(1).map((line, idx) => {
+          const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.trim().replace(/^"|"$/g, ''));
+          const obj: Record<string, string> = {};
+          headers.forEach((h, i) => { obj[h] = values[i] || ''; });
+          return { ...obj, _fila: String(idx + 2) };
         });
-        importedCount++;
-      }
 
-      let mensaje = `Se importaron ${importedCount} leads correctamente.`;
-      if (carrerasNoMapeadas.length > 0) {
-        mensaje += `\n\n⚠️ ${carrerasNoMapeadas.length} valor(es) de carrera no reconocido(s):\n${carrerasNoMapeadas.map(c => `• ${c}`).join('\n')}\n\nEstos leads fueron importados con carrera vacía.`;
+        const advertencias: string[] = [];
+        const now = new Date().toISOString();
+        const batch: { lead: Record<string, any>; fila: number; nombre: string }[] = [];
+
+        for (const item of data) {
+          const fila = parseInt(item._fila);
+          if (isInterno) {
+            const nombre = (item['Nombre'] || '').trim();
+            if (!nombre) continue;
+
+            const carreraRaw = (item['Carrera'] || '').trim().toUpperCase();
+            const carrera = CARRERAS_VALIDAS.includes(carreraRaw) ? carreraRaw : '';
+            if (carreraRaw && !carrera) {
+              advertencias.push(`Fila ${fila} (${nombre}): carrera "${carreraRaw}" no reconocida, se importa vacía`);
+            }
+
+            const resultadoRaw = item['Resultado Llamada'] || '';
+            const resultado = matchResultado(resultadoRaw);
+            if (resultadoRaw && resultado === ResultadoLlamada.SinGestion && normalizeStr(resultadoRaw) !== normalizeStr(ResultadoLlamada.SinGestion)) {
+              advertencias.push(`Fila ${fila} (${nombre}): resultado "${resultadoRaw}" no reconocido, se importa como "Sin Gestion"`);
+            }
+
+            const horarioRaw = item['Hora llamada'] || item['Horario Llamada'] || '';
+            const horario = matchHorario(horarioRaw);
+            if (horarioRaw && !horario) {
+              advertencias.push(`Fila ${fila} (${nombre}): horario "${horarioRaw}" no reconocido, se importa vacío`);
+            }
+
+            batch.push({ fila, nombre, lead: {
+              nombre,
+              carrera_interes: carrera,
+              fecha_lead: parseFecha(item['Fecha Lead'] || ''),
+              resultado_llamada: resultado,
+              horario_llamada: horario,
+              intentos_llamado: parseInt(item['Intentos de llamada'] || item['Intentos'] || '1') || 1,
+              comentario: item['Comentario'] || '',
+              owner: null,
+              created_at: now,
+              updated_at: now,
+            }});
+          } else {
+            const nombre = [item['Nombre'], item['Primer Apellido']].filter(Boolean).join(' ').trim();
+            if (!nombre) continue;
+
+            const productoRaw = item['Producto'] || '';
+            const carreraCode = PRODUCTO_A_CARRERA[normalizeStr(productoRaw)] || '';
+            if (productoRaw && !carreraCode) {
+              advertencias.push(`Fila ${fila} (${nombre}): producto "${productoRaw}" no reconocido, se importa sin carrera`);
+            }
+
+            batch.push({ fila, nombre, lead: {
+              nombre,
+              carrera_interes: carreraCode,
+              fecha_lead: now.split('T')[0],
+              resultado_llamada: matchResultado(item['Estado de Lead'] || ''),
+              horario_llamada: null,
+              intentos_llamado: 1,
+              comentario: '',
+              owner: null,
+              created_at: now,
+              updated_at: now,
+            }});
+          }
+        }
+
+        if (batch.length === 0) {
+          setImportResult({ type: 'error', title: 'No se encontraron leads válidos en el archivo' });
+          return;
+        }
+
+        // Intentar batch completo primero
+        const { error } = await supabase.from('leads').insert(batch.map(b => b.lead));
+
+        if (error) {
+          // Batch falló: insertar uno a uno para identificar errores, luego borrar los insertados
+          const errores: string[] = [];
+          const insertedIds: string[] = [];
+          for (const row of batch) {
+            const { data: inserted, error: rowErr } = await supabase.from('leads').insert([row.lead]).select('lead_id');
+            if (rowErr) {
+              errores.push(`Fila ${row.fila} (${row.nombre}): ${rowErr.message}`);
+            } else if (inserted?.[0]) {
+              insertedIds.push(inserted[0].lead_id);
+            }
+          }
+          // Rollback: borrar todos los que sí se insertaron
+          if (insertedIds.length > 0) {
+            await supabase.from('leads').delete().in('lead_id', insertedIds);
+          }
+          setImportResult({
+            type: 'error',
+            title: 'No se importó ningún lead — se encontraron errores',
+            details: errores,
+          });
+        } else {
+          onRefresh?.();
+          setImportResult({
+            type: advertencias.length > 0 ? 'warning' : 'success',
+            title: advertencias.length > 0
+              ? `Se importaron ${batch.length} leads con ${advertencias.length} advertencia${advertencias.length > 1 ? 's' : ''}`
+              : `Se importaron ${batch.length} leads correctamente`,
+            details: advertencias.length > 0 ? advertencias : undefined,
+          });
+        }
+      } catch (err: any) {
+        const msg = err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+        setImportResult({ type: 'error', title: 'Error al importar CSV', details: [msg] });
+      } finally {
+        setImportando(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
       }
-      alert(mensaje);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     };
     reader.readAsText(file);
   };
@@ -444,6 +567,34 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
         </div>
       </div>
 
+      {importando && (
+        <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-xl text-sm font-medium">
+          <svg className="animate-spin h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+          Importando leads...
+        </div>
+      )}
+
+      {importResult && (
+        <div className={`relative border rounded-xl px-4 py-3 text-sm ${
+          importResult.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' :
+          importResult.type === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-800' :
+          'bg-red-50 border-red-200 text-red-800'
+        }`}>
+          <button onClick={() => setImportResult(null)} className="absolute top-2.5 right-3 opacity-50 hover:opacity-100 transition-opacity text-lg leading-none">&times;</button>
+          <div className="flex items-center gap-2 font-bold pr-6">
+            {importResult.type === 'success' && <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>}
+            {importResult.type === 'warning' && <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>}
+            {importResult.type === 'error' && <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>}
+            {importResult.title}
+          </div>
+          {importResult.details && importResult.details.length > 0 && (
+            <ul className="mt-2 space-y-0.5 text-xs opacity-80 max-h-40 overflow-y-auto">
+              {importResult.details.map((d, i) => <li key={i}>{d}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
+
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
         <table className="w-full text-left">
           <thead className="bg-gray-50 text-gray-500 text-[10px] font-black uppercase tracking-widest">
@@ -461,7 +612,7 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
             {activeLeads.length > 0 ? (
               activeLeads.map(l => (
                 <tr key={l.lead_id} className="border-b border-gray-100 text-sm hover:bg-gray-50 transition-colors">
-                  <td className="p-4 text-gray-400 font-medium">{new Date(l.fecha_lead).toLocaleDateString()}</td>
+                  <td className="p-4 text-gray-400 font-medium">{new Date(l.fecha_lead + 'T00:00:00').toLocaleDateString('es-UY', { day: '2-digit', month: '2-digit', year: 'numeric' })}</td>
                   <td className="p-4 font-bold text-gray-900">{l.nombre}</td>
                   <td className="p-4 font-black text-blue-600">{l.carrera_interes}</td>
                   <td className="p-4">

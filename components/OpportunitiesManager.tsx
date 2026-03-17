@@ -4,6 +4,7 @@ import { Oportunidad, FaseOportunidad, LiceoTipo, ModalidadRAS } from '../types'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { exportChartsAsImage, exportChartsAsCSV, ChartData } from '../lib/exportChart';
 import { parseNLQuery, SmartCondition, NLOperator } from '../lib/nlParser';
+import { supabase } from '../lib/supabase';
 
 class OppErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: string | null }> {
   state = { error: null as string | null };
@@ -19,9 +20,10 @@ interface OpportunitiesManagerProps {
   onAdd: (opp: any) => void;
   onUpdate: (opp: Oportunidad, rasInfo?: any) => void;
   onDelete: (id: string) => void;
+  onRefresh?: () => void;
 }
 
-const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportunities, onAdd, onUpdate, onDelete }) => {
+const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportunities, onAdd, onUpdate, onDelete, onRefresh }) => {
   const navigateToDetail = useNavigate();
   // Estados de Filtros
   const [filter, setFilter] = useState('');
@@ -59,6 +61,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
   const [showCharts, setShowCharts] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(true);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
   const careerDropdownRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -375,6 +378,13 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
     }
   };
 
+  const [importando, setImportando] = useState(false);
+  const [importResult, setImportResult] = useState<{
+    type: 'success' | 'warning' | 'error';
+    title: string;
+    details?: string[];
+  } | null>(null);
+
   const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -397,75 +407,125 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
       }).map(([k, v]) => [normalizeStr(k), v])
     );
 
+    const matchFase = (raw: string): FaseOportunidad => {
+      const n = normalizeStr(raw);
+      for (const val of Object.values(FaseOportunidad)) {
+        if (normalizeStr(val) === n) return val;
+      }
+      return FaseOportunidad.Interesado;
+    };
+
+    setImportando(true);
     const reader = new FileReader();
     reader.onload = async (event) => {
-      const text = event.target?.result as string;
-      const lines = text.split(/\r?\n/).filter(line => line.trim());
-      if (lines.length <= 1) return;
+      try {
+        const text = event.target?.result as string;
+        const lines = text.split(/\r?\n/).filter(line => line.trim());
+        if (lines.length <= 1) { setImportando(false); return; }
 
-      const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
 
-      const requiredCols = ['Nombre de Trato', 'Producto'];
-      const missingCols = requiredCols.filter(col => !headers.includes(col));
-      if (missingCols.length > 0) {
-        alert(`Formato de CSV no válido. Faltan las columnas: ${missingCols.join(', ')}.\n\nEste importador solo acepta el formato de exportación externo (ZOHO).`);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-        return;
-      }
-
-      const data = lines.slice(1).map(line => {
-        const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.trim().replace(/^"|"$/g, ''));
-        const obj: Record<string, string> = {};
-        headers.forEach((h, i) => { obj[h] = values[i] || ''; });
-        return obj;
-      });
-
-      let importedCount = 0;
-      const carrerasNoMapeadas: string[] = [];
-
-      for (const item of data) {
-        const nombreTrato = item['Nombre de Trato'] || '';
-        if (!nombreTrato) continue;
-
-        const nombre = nombreTrato.split(' - ')[0].trim();
-
-        const productoRaw = item['Producto'] || '';
-        const carreraCode = PRODUCTO_A_CARRERA[normalizeStr(productoRaw)] || '';
-        if (productoRaw && !carreraCode && !carrerasNoMapeadas.includes(productoRaw)) {
-          carrerasNoMapeadas.push(productoRaw);
+        const requiredCols = ['Nombre de Trato', 'Producto'];
+        const missingCols = requiredCols.filter(col => !headers.includes(col));
+        if (missingCols.length > 0) {
+          setImportResult({
+            type: 'error',
+            title: 'Formato de CSV no válido',
+            details: [`Faltan las columnas: ${missingCols.join(', ')}`, 'Columnas requeridas: Nombre de Trato, Producto'],
+          });
+          setImportando(false);
+          if (fileInputRef.current) fileInputRef.current.value = '';
+          return;
         }
 
-        const faseRaw = item['Fase'] || '';
-        const faseValida = Object.values(FaseOportunidad).includes(faseRaw as FaseOportunidad);
-        const fase = faseValida ? (faseRaw as FaseOportunidad) : FaseOportunidad.Interesado;
-
-        await onAdd({
-          nombre,
-          nombre_trato: nombreTrato,
-          carrera_interes: carreraCode,
-          sape: item['Codigo SAPE'] || '',
-          proceso_inicio: item['Proceso'] || '',
-          fase_oportunidad: fase,
-          cedula: '',
-          telefono: '',
-          mail: '',
-          liceo: '',
-          liceo_tipo: LiceoTipo.Publico,
-          fecha_lead: new Date().toISOString().split('T')[0],
-          ras_agendada: false,
-          multiple_interes: false,
-          otros_intereses: [],
-          comentario_extra: '',
+        const data = lines.slice(1).map((line, idx) => {
+          const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.trim().replace(/^"|"$/g, ''));
+          const obj: Record<string, string> = {};
+          headers.forEach((h, i) => { obj[h] = values[i] || ''; });
+          return { ...obj, _fila: String(idx + 2) };
         });
-        importedCount++;
-      }
 
-      let mensaje = `Se importaron ${importedCount} oportunidades correctamente.`;
-      if (carrerasNoMapeadas.length > 0) {
-        mensaje += `\n\n⚠️ ${carrerasNoMapeadas.length} valor(es) de carrera no reconocido(s):\n${carrerasNoMapeadas.map(c => `• ${c}`).join('\n')}\n\nEstas oportunidades fueron importadas con carrera vacía.`;
+        const advertencias: string[] = [];
+        const now = new Date().toISOString();
+        const batch: { opp: Record<string, any>; fila: number; nombre: string }[] = [];
+
+        for (const item of data) {
+          const fila = parseInt(item._fila);
+          const nombreTrato = item['Nombre de Trato'] || '';
+          if (!nombreTrato) continue;
+
+          const nombre = nombreTrato.split(' - ')[0].trim();
+
+          const productoRaw = item['Producto'] || '';
+          const carreraCode = PRODUCTO_A_CARRERA[normalizeStr(productoRaw)] || '';
+          if (productoRaw && !carreraCode) {
+            advertencias.push(`Fila ${fila} (${nombre}): producto "${productoRaw}" no reconocido, se importa sin carrera`);
+          }
+
+          const faseRaw = item['Fase'] || '';
+          const fase = matchFase(faseRaw);
+          if (faseRaw && fase === FaseOportunidad.Interesado && normalizeStr(faseRaw) !== normalizeStr(FaseOportunidad.Interesado)) {
+            advertencias.push(`Fila ${fila} (${nombre}): fase "${faseRaw}" no reconocida, se importa como "Interesado"`);
+          }
+
+          batch.push({ fila, nombre, opp: {
+            nombre,
+            nombre_trato: nombreTrato,
+            carrera_interes: carreraCode,
+            sape: item['Codigo SAPE'] || null,
+            proceso_inicio: item['Proceso'] || null,
+            fase_oportunidad: fase,
+            fecha_lead: now.split('T')[0],
+            ras_agendada: false,
+            multiple_interes: false,
+            created_at: now,
+            updated_at: now,
+          }});
+        }
+
+        if (batch.length === 0) {
+          setImportResult({ type: 'error', title: 'No se encontraron oportunidades válidas en el archivo' });
+          return;
+        }
+
+        const { error } = await supabase.from('oportunidades').insert(batch.map(b => b.opp));
+
+        if (error) {
+          const errores: string[] = [];
+          const insertedIds: string[] = [];
+          for (const row of batch) {
+            const { data: inserted, error: rowErr } = await supabase.from('oportunidades').insert([row.opp]).select('opp_id');
+            if (rowErr) {
+              errores.push(`Fila ${row.fila} (${row.nombre}): ${rowErr.message}`);
+            } else if (inserted?.[0]) {
+              insertedIds.push(inserted[0].opp_id);
+            }
+          }
+          if (insertedIds.length > 0) {
+            await supabase.from('oportunidades').delete().in('opp_id', insertedIds);
+          }
+          setImportResult({
+            type: 'error',
+            title: 'No se importó ninguna oportunidad — se encontraron errores',
+            details: errores,
+          });
+        } else {
+          onRefresh?.();
+          setImportResult({
+            type: advertencias.length > 0 ? 'warning' : 'success',
+            title: advertencias.length > 0
+              ? `Se importaron ${batch.length} oportunidades con ${advertencias.length} advertencia${advertencias.length > 1 ? 's' : ''}`
+              : `Se importaron ${batch.length} oportunidades correctamente`,
+            details: advertencias.length > 0 ? advertencias : undefined,
+          });
+        }
+      } catch (err: any) {
+        const msg = err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+        setImportResult({ type: 'error', title: 'Error al importar CSV', details: [msg] });
+      } finally {
+        setImportando(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
       }
-      alert(mensaje);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     };
     reader.readAsText(file);
   };
@@ -628,34 +688,66 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
           <h2 className="text-2xl font-bold text-gray-900">Oportunidades de Venta</h2>
           <p className="text-sm text-gray-500">Gestión avanzada del pipeline de asesoría</p>
         </div>
-        <div className="flex flex-wrap gap-3">
+        <div className="flex items-center gap-3">
           <input type="file" ref={fileInputRef} onChange={handleImportCSV} accept=".csv" className="hidden" />
-          <button onClick={() => fileInputRef.current?.click()} className="bg-blue-50 text-blue-700 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-blue-100 transition-all flex items-center gap-2 active:scale-95">
-            Importar
-          </button>
-          <button onClick={handleExportCSV} className="bg-white border border-gray-200 text-gray-700 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-gray-50 transition-all flex items-center gap-2 active:scale-95">
-            Exportar CSV
-          </button>
-          <button onClick={() => {
-            const charts: ChartData[] = [
-              { title: 'Pipeline Actual', data: stats.pipelineData.map((d, i) => ({ ...d, color: '#2563eb' })), type: 'bar' },
-              { title: 'Mix de Carreras', data: stats.careerData.map((d, i) => ({ ...d, color: '#9333ea' })), type: 'bar' },
-            ];
-            exportChartsAsImage(charts, 'oportunidades_graficas');
-          }} className="bg-white border border-gray-200 text-gray-700 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-gray-50 transition-all flex items-center gap-2 active:scale-95">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Imagen
-          </button>
-          <button onClick={() => {
-            const charts: ChartData[] = [
-              { title: 'Pipeline Actual', data: stats.pipelineData, type: 'bar' },
-              { title: 'Mix de Carreras', data: stats.careerData, type: 'bar' },
-            ];
-            exportChartsAsCSV(charts, 'oportunidades_datos');
-          }} className="bg-white border border-gray-200 text-gray-700 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-gray-50 transition-all flex items-center gap-2 active:scale-95">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-            CSV
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowActionsMenu(p => !p)}
+              className="bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl font-bold shadow-sm hover:bg-gray-50 transition-all text-sm active:scale-95 flex items-center gap-2"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+            </button>
+            {showActionsMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowActionsMenu(false)} />
+                <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-48 animate-in zoom-in-95 duration-150">
+                  <button
+                    onClick={() => {
+                      const charts: ChartData[] = [
+                        { title: 'Pipeline Actual', data: stats.pipelineData.map((d) => ({ ...d, color: '#2563eb' })), type: 'bar' },
+                        { title: 'Mix de Carreras', data: stats.careerData.map((d) => ({ ...d, color: '#9333ea' })), type: 'bar' },
+                      ];
+                      exportChartsAsImage(charts, 'oportunidades_graficas');
+                      setShowActionsMenu(false);
+                    }}
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Exportar Imagen
+                  </button>
+                  <button
+                    onClick={() => {
+                      const charts: ChartData[] = [
+                        { title: 'Pipeline Actual', data: stats.pipelineData, type: 'bar' },
+                        { title: 'Mix de Carreras', data: stats.careerData, type: 'bar' },
+                      ];
+                      exportChartsAsCSV(charts, 'oportunidades_datos');
+                      setShowActionsMenu(false);
+                    }}
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    Exportar CSV Gráficas
+                  </button>
+                  <button
+                    onClick={() => { handleExportCSV(); setShowActionsMenu(false); }}
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    Exportar CSV Datos
+                  </button>
+                  <div className="border-t border-gray-100 my-1" />
+                  <button
+                    onClick={() => { fileInputRef.current?.click(); setShowActionsMenu(false); }}
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    Importar CSV
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
           <button onClick={() => { setEditingOpp(null); setMultipleInteres(false); setOtrosIntereses([]); setOriginalOtrosIntereses([]); setMainCarrera(CARRERAS_OPTIONS[0]); setShowModal(true); }} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold shadow-md hover:bg-blue-700 transition-all active:scale-95">
             + Nueva Opp
           </button>
@@ -868,6 +960,34 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
           </div>
         )}
       </div>
+
+      {importando && (
+        <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-xl text-sm font-medium">
+          <svg className="animate-spin h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+          Importando oportunidades...
+        </div>
+      )}
+
+      {importResult && (
+        <div className={`relative border rounded-xl px-4 py-3 text-sm ${
+          importResult.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' :
+          importResult.type === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-800' :
+          'bg-red-50 border-red-200 text-red-800'
+        }`}>
+          <button onClick={() => setImportResult(null)} className="absolute top-2.5 right-3 opacity-50 hover:opacity-100 transition-opacity text-lg leading-none">&times;</button>
+          <div className="flex items-center gap-2 font-bold pr-6">
+            {importResult.type === 'success' && <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>}
+            {importResult.type === 'warning' && <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>}
+            {importResult.type === 'error' && <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>}
+            {importResult.title}
+          </div>
+          {importResult.details && importResult.details.length > 0 && (
+            <ul className="mt-2 space-y-0.5 text-xs opacity-80 max-h-40 overflow-y-auto">
+              {importResult.details.map((d, i) => <li key={i}>{d}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* Contactos agrupados por SAPE */}
       <div className="space-y-3">

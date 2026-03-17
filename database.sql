@@ -2,7 +2,7 @@
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'resultado_llamada_enum') THEN
-        CREATE TYPE resultado_llamada_enum AS ENUM ('1er Contacto', 'Contactado', 'No interesado', 'Interesado', 'Número Incorrecto', 'Llamar más tarde');
+        CREATE TYPE resultado_llamada_enum AS ENUM ('Sin Gestion', '1er Contacto', 'Contactado', 'No interesado', 'Interesado', 'Número Incorrecto', 'Llamar más tarde');
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'liceo_tipo_enum') THEN
         CREATE TYPE liceo_tipo_enum AS ENUM ('Publico', 'Privado', 'Interior');

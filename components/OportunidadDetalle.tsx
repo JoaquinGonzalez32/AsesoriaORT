@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Oportunidad, RAS, FaseOportunidad, LiceoTipo, ModalidadRAS, ResultadoRAS } from '../types';
+import { supabase } from '../lib/supabase';
 
 import { ROUTES } from '../constants';
 
@@ -50,8 +51,29 @@ const OportunidadDetalle: React.FC<OportunidadDetalleProps> = ({
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const opp = useMemo(() => opportunities.find(o => o.opp_id === id), [opportunities, id]);
+  const [fetchedOpp, setFetchedOpp] = useState<Oportunidad | null>(null);
+  const [fetchingOpp, setFetchingOpp] = useState(false);
+
+  const memOpp = useMemo(() => opportunities.find(o => o.opp_id === id), [opportunities, id]);
+  const opp = memOpp || fetchedOpp;
   const linkedRas = useMemo(() => rases.find(r => r.opp_id === id && !r.deleted_at), [rases, id]);
+
+  // Fallback: fetch from Supabase if not in memory
+  useEffect(() => {
+    if (!memOpp && id && !fetchedOpp && !fetchingOpp) {
+      setFetchingOpp(true);
+      supabase
+        .from('oportunidades')
+        .select('*')
+        .eq('opp_id', id)
+        .is('deleted_at', null)
+        .single()
+        .then(({ data }) => {
+          if (data) setFetchedOpp(data as Oportunidad);
+          setFetchingOpp(false);
+        });
+    }
+  }, [memOpp, id, fetchedOpp, fetchingOpp]);
   const otherOpps = useMemo(() => {
     if (!opp) return [];
     return opportunities.filter(o => !o.deleted_at && o.opp_id !== opp.opp_id && o.nombre.toLowerCase() === opp.nombre.toLowerCase());
@@ -240,7 +262,14 @@ const OportunidadDetalle: React.FC<OportunidadDetalleProps> = ({
     }
   };
 
-  // ---------- Not found ----------
+  // ---------- Loading / Not found ----------
+  if (fetchingOpp) {
+    return (
+      <div className="flex items-center justify-center min-h-[300px]">
+        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
   if (!opp) {
     return (
       <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
@@ -262,9 +291,22 @@ const OportunidadDetalle: React.FC<OportunidadDetalleProps> = ({
   const selectClass = "bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold w-full cursor-pointer focus:ring-2 focus:ring-blue-500 outline-none";
   const labelClass = "text-[10px] font-black uppercase text-gray-400 mb-1.5 block tracking-widest";
 
+  const rasWarning = opp.ras_agendada && !linkedRas;
+
   // ---------- RENDER ----------
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
+      {/* Warning: RAS agendada sin RAS */}
+      {rasWarning && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 flex items-start gap-3">
+          <svg className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <div>
+            <p className="text-amber-800 font-bold text-sm">Esta oportunidad tiene RAS agendada pero no hay una RAS registrada</p>
+            <p className="text-amber-600 text-xs mt-0.5">Agendá una RAS desde la sección de abajo para completar el seguimiento.</p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-4">

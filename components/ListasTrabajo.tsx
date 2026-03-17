@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../hooks/useAuth';
+import { syncListaItemsWithOportunidades } from '../lib/syncListaOportunidades';
 
-interface ListaDeTrabajoItem {
+interface Lista {
   id: string;
-  nombre_trato: string;
   nombre: string;
-  fase: string | null;
-  carrera_interes: string | null;
-  codigo_sape: string | null;
-  proceso: string | null;
+  completada: boolean;
   created_at: string;
+  count?: number;
 }
 
 // ─── Mapeo de carreras ────────────────────────────────────────────────────────
@@ -27,15 +27,8 @@ const CARRERA_RAW: [string, string][] = [
   ['Licenciatura en Diseño Industrial',       'YN'],
 ];
 
-const FASES = [
-  'Interesado', 'Evaluando', 'Contactado',
-  'No interesado', 'Promesa de Inscripcion', 'Inscripto',
-];
-
-const CODIGOS = ['GF', 'WE', 'LV', 'LD', 'LT', 'WY', 'LG', 'VD', 'UI', 'YN'];
-
 const normalize = (s: string) =>
-  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 
 const mapCarrera = (producto: string): string | null => {
   const key = normalize(producto);
@@ -47,8 +40,6 @@ const mapCarrera = (producto: string): string | null => {
 
 const extractNombre = (nombreTrato: string): string =>
   (nombreTrato.split(' - ')[0] || nombreTrato).trim();
-
-// ─── CSV parser (preserva mayúsculas en headers) ──────────────────────────────
 
 const parseCSV = (text: string): Record<string, string>[] => {
   const lines = text.split(/\r?\n/).filter(line => line.trim());
@@ -65,179 +56,196 @@ const parseCSV = (text: string): Record<string, string>[] => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ListasTrabajo: React.FC = () => {
-  const [items, setItems] = useState<ListaDeTrabajoItem[]>([]);
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [listas, setListas] = useState<Lista[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [buscar, setBuscar] = useState('');
 
-  // Import
-  const [showImportModal, setShowImportModal] = useState(false);
+  // Nueva lista
+  const [showNewModal, setShowNewModal] = useState(false);
+  const [newNombre, setNewNombre] = useState('');
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
-  const [importWarnings, setImportWarnings] = useState<string[]>([]);
+  const [importResult, setImportResult] = useState<{ type: 'success' | 'warning'; title: string; details?: string[] } | null>(null);
 
-  // Edit
-  const [editingItem, setEditingItem] = useState<ListaDeTrabajoItem | null>(null);
-  const [editNombreTrato, setEditNombreTrato] = useState('');
-  const [editFase, setEditFase] = useState('');
-  const [editCarrera, setEditCarrera] = useState('');
-  const [editSape, setEditSape] = useState('');
-  const [editProceso, setEditProceso] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [editError, setEditError] = useState<string | null>(null);
-
-  // Delete
-  const [deletingItem, setDeletingItem] = useState<ListaDeTrabajoItem | null>(null);
+  // Delete lista
+  const [deletingLista, setDeletingLista] = useState<Lista | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   // ─── Fetch ────────────────────────────────────────────────────────────────
 
-  const fetchItems = async () => {
+  const fetchListas = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('listas_de_trabajo')
+    const { data, error: err } = await supabase
+      .from('listas')
       .select('*')
       .order('created_at', { ascending: false });
-    if (error) {
-      setError('Error al cargar los registros: ' + error.message);
-    } else {
-      setItems(data as ListaDeTrabajoItem[]);
+    if (err) {
+      setError('Error al cargar las listas: ' + err.message);
+      setLoading(false);
+      return;
     }
+
+    // Contar items por lista
+    const { data: counts } = await supabase
+      .from('listas_de_trabajo')
+      .select('lista_id');
+    const countMap: Record<string, number> = {};
+    (counts || []).forEach((row: any) => {
+      if (row.lista_id) countMap[row.lista_id] = (countMap[row.lista_id] || 0) + 1;
+    });
+
+    setListas((data || []).map(l => ({ ...l, count: countMap[l.id] || 0 })));
     setLoading(false);
   };
 
-  useEffect(() => { fetchItems(); }, []);
+  useEffect(() => { fetchListas(); }, []);
 
-  // ─── Import ───────────────────────────────────────────────────────────────
+  // ─── Crear nueva lista ──────────────────────────────────────────────────
 
-  const handleImport = async (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!csvFile) { setImportError('Selecciona un archivo CSV'); return; }
+    if (!newNombre.trim()) { setImportError('Ingresá un nombre para la lista'); return; }
     setImporting(true);
     setImportError(null);
     try {
-      const text = await csvFile.text();
-      const rows = parseCSV(text);
+      // Crear la lista
+      const { data: newLista, error: listaErr } = await supabase
+        .from('listas')
+        .insert([{ nombre: newNombre.trim() }])
+        .select()
+        .single();
+      if (listaErr) throw listaErr;
 
-      if (rows.length === 0) {
-        setImportError('El archivo CSV está vacío o no tiene el formato correcto');
-        setImporting(false);
-        return;
+      // Si hay CSV, importar items
+      if (csvFile) {
+        const text = await csvFile.text();
+        const rows = parseCSV(text);
+
+        if (rows.length === 0) {
+          setImportError('El archivo CSV está vacío');
+          setImporting(false);
+          return;
+        }
+        if (!('Nombre de Trato' in rows[0])) {
+          setImportError('El CSV debe tener la columna "Nombre de Trato"');
+          setImporting(false);
+          return;
+        }
+        if (!('Producto' in rows[0])) {
+          setImportError('El CSV debe tener la columna "Producto"');
+          setImporting(false);
+          return;
+        }
+
+        const warnings: string[] = [];
+        const rawItems = rows
+          .filter(row => row['Nombre de Trato'])
+          .map(row => {
+            const nombreTrato = row['Nombre de Trato'];
+            const producto = row['Producto'] || '';
+            const carrera = producto ? mapCarrera(producto) : null;
+            if (producto && !carrera && !warnings.includes(producto)) {
+              warnings.push(producto);
+            }
+            return {
+              nombre_trato: nombreTrato,
+              nombre: extractNombre(nombreTrato),
+              fase: row['Fase'] || null,
+              carrera_interes: carrera,
+              codigo_sape: row['Codigo SAPE'] || null,
+              proceso: row['Proceso'] || null,
+              lista_id: newLista.id,
+            };
+          });
+
+        // Sync with oportunidades
+        const syncResult = await syncListaItemsWithOportunidades(rawItems, user?.id || '');
+
+        const itemsToInsert = syncResult.items.map(({ opp_id, tag, ...rest }) => ({
+          ...rest,
+          opp_id,
+          tag,
+        }));
+
+        const { error: insertErr } = await supabase
+          .from('listas_de_trabajo')
+          .insert(itemsToInsert);
+        if (insertErr) throw insertErr;
+
+        const syncDetails: string[] = [];
+        if (syncResult.vinculadas > 0) syncDetails.push(`${syncResult.vinculadas} vinculadas a oportunidades existentes`);
+        if (syncResult.creadas > 0) syncDetails.push(`${syncResult.creadas} oportunidades creadas`);
+        if (syncResult.sinSape > 0) syncDetails.push(`${syncResult.sinSape} sin SAPE (no vinculadas)`);
+        if (syncResult.creadasSinRas > 0) syncDetails.push(`${syncResult.creadasSinRas} oportunidad${syncResult.creadasSinRas !== 1 ? 'es tienen' : ' tiene'} RAS agendada marcada pero no hay RAS creada — agendar manualmente`);
+        if (syncResult.errors.length > 0) syncDetails.push(...syncResult.errors);
+
+        const hasWarnings = warnings.length > 0 || syncResult.creadasSinRas > 0;
+
+        if (hasWarnings) {
+          setImportResult({
+            type: 'warning',
+            title: `Lista creada con ${itemsToInsert.length} registros`,
+            details: [
+              ...warnings.map(w => `Producto "${w}" no reconocido, se importó sin carrera`),
+              ...syncDetails,
+            ],
+          });
+        } else {
+          setImportResult({
+            type: 'success',
+            title: `Lista creada con ${itemsToInsert.length} registros`,
+            details: syncDetails.length > 0 ? syncDetails : undefined,
+          });
+        }
+      } else {
+        setImportResult({ type: 'success', title: 'Lista creada (vacía)' });
       }
-      if (!('Nombre de Trato' in rows[0])) {
-        setImportError('El CSV debe tener la columna "Nombre de Trato"');
-        setImporting(false);
-        return;
-      }
-      if (!('Producto' in rows[0])) {
-        setImportError('El CSV debe tener la columna "Producto"');
-        setImporting(false);
-        return;
-      }
 
-      const warnings: string[] = [];
-      const itemsToInsert = rows
-        .filter(row => row['Nombre de Trato'])
-        .map(row => {
-          const nombreTrato = row['Nombre de Trato'];
-          const producto = row['Producto'] || '';
-          const carrera = producto ? mapCarrera(producto) : null;
-          if (producto && !carrera && !warnings.includes(producto)) {
-            warnings.push(producto);
-          }
-          return {
-            nombre_trato: nombreTrato,
-            nombre: extractNombre(nombreTrato),
-            fase: row['Fase'] || null,
-            carrera_interes: carrera,
-            codigo_sape: row['Codigo SAPE'] || null,
-            proceso: row['Proceso'] || null,
-          };
-        });
-
-      const { error: insertError } = await supabase
-        .from('listas_de_trabajo')
-        .insert(itemsToInsert);
-      if (insertError) throw insertError;
-
-      setImportWarnings(warnings);
-      setSuccess(`${itemsToInsert.length} registro${itemsToInsert.length !== 1 ? 's' : ''} importado${itemsToInsert.length !== 1 ? 's' : ''} correctamente`);
-      setShowImportModal(false);
+      setShowNewModal(false);
+      setNewNombre('');
       setCsvFile(null);
-      await fetchItems();
+      await fetchListas();
     } catch (err: any) {
-      setImportError(err.message || 'Error al importar');
+      setImportError(err.message || 'Error al crear la lista');
     } finally {
       setImporting(false);
     }
   };
 
-  // ─── Edit ────────────────────────────────────────────────────────────────
+  // ─── Delete lista ──────────────────────────────────────────────────────
 
-  const openEdit = (item: ListaDeTrabajoItem) => {
-    setEditingItem(item);
-    setEditNombreTrato(item.nombre_trato);
-    setEditFase(item.fase || '');
-    setEditCarrera(item.carrera_interes || '');
-    setEditSape(item.codigo_sape || '');
-    setEditProceso(item.proceso || '');
-    setEditError(null);
-  };
-
-  const handleEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingItem) return;
-    setSaving(true);
-    setEditError(null);
-    try {
-      const { error } = await supabase
-        .from('listas_de_trabajo')
-        .update({
-          nombre_trato: editNombreTrato.trim(),
-          nombre: extractNombre(editNombreTrato.trim()),
-          fase: editFase || null,
-          carrera_interes: editCarrera || null,
-          codigo_sape: editSape.trim() || null,
-          proceso: editProceso.trim() || null,
-        })
-        .eq('id', editingItem.id);
-      if (error) throw error;
-      setSuccess('Registro actualizado correctamente');
-      setEditingItem(null);
-      await fetchItems();
-    } catch (err: any) {
-      setEditError(err.message || 'Error al guardar');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // ─── Delete ───────────────────────────────────────────────────────────────
-
-  const handleDelete = async () => {
-    if (!deletingItem) return;
+  const handleDeleteLista = async () => {
+    if (!deletingLista) return;
     setDeleting(true);
-    const { error } = await supabase
-      .from('listas_de_trabajo')
-      .delete()
-      .eq('id', deletingItem.id);
+    // ON DELETE CASCADE borra los items automaticamente
+    const { error } = await supabase.from('listas').delete().eq('id', deletingLista.id);
     if (error) {
       setError(error.message);
     } else {
-      setSuccess('Registro eliminado');
-      await fetchItems();
+      await fetchListas();
     }
-    setDeletingItem(null);
+    setDeletingLista(null);
     setDeleting(false);
   };
 
-  // ─── Computed ────────────────────────────────────────────────────────────
+  // ─── Toggle completada ──────────────────────────────────────────────────
 
-  const filteredItems = buscar
-    ? items.filter(i => i.nombre_trato.toLowerCase().includes(buscar.toLowerCase()))
-    : items;
+  const toggleCompletada = async (lista: Lista, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newVal = !lista.completada;
+    const { error: err } = await supabase
+      .from('listas')
+      .update({ completada: newVal })
+      .eq('id', lista.id);
+    if (err) {
+      setError(err.message);
+    } else {
+      setListas(prev => prev.map(l => l.id === lista.id ? { ...l, completada: newVal } : l));
+    }
+  };
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -245,168 +253,149 @@ const ListasTrabajo: React.FC = () => {
     <div>
       {/* Cabecera */}
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Listas de Trabajo</h2>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Listas de Trabajo</h2>
+          <p className="text-sm text-gray-500">Importaciones de oportunidades desde Zoho CRM</p>
+        </div>
         <button
-          onClick={() => { setShowImportModal(true); setImportError(null); setCsvFile(null); }}
+          onClick={() => { setShowNewModal(true); setImportError(null); setCsvFile(null); setNewNombre(''); }}
           className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-700 transition-all shadow-lg active:scale-[0.98]"
         >
-          + Importar CSV
+          + Nueva Lista
         </button>
       </div>
 
       {/* Mensajes */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 font-medium mb-4">{error}</div>
-      )}
-      {success && (
-        <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-xl px-4 py-3 font-medium mb-4">{success}</div>
-      )}
-      {importWarnings.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-xl px-4 py-3 mb-4">
-          <p className="font-bold mb-1">Productos no reconocidos — se importaron con carrera vacía:</p>
-          <ul className="list-disc pl-5 space-y-0.5">
-            {importWarnings.map(w => <li key={w}>{w}</li>)}
-          </ul>
-          <button
-            onClick={() => setImportWarnings([])}
-            className="mt-2 text-amber-700 hover:text-amber-900 text-xs font-bold underline"
-          >
-            Cerrar
-          </button>
+        <div className="relative bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 font-medium mb-4">
+          {error}
+          <button onClick={() => setError(null)} className="absolute top-2.5 right-3 opacity-50 hover:opacity-100 text-lg leading-none">&times;</button>
         </div>
       )}
-
-      {/* Buscador */}
-      <div className="mb-4">
-        <input
-          type="text"
-          placeholder="Buscar por nombre de trato..."
-          value={buscar}
-          onChange={e => setBuscar(e.target.value)}
-          className={`border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-sm ${buscar ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white'}`}
-        />
-      </div>
-
-      {/* Tabla */}
-      {loading ? (
-        <div className="flex items-center justify-center min-h-[200px]">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-        </div>
-      ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="text-left p-4 text-[10px] font-black text-gray-400 uppercase">Nombre de Trato</th>
-                  <th className="text-left p-4 text-[10px] font-black text-gray-400 uppercase">Fase</th>
-                  <th className="text-left p-4 text-[10px] font-black text-gray-400 uppercase">Carrera</th>
-                  <th className="text-left p-4 text-[10px] font-black text-gray-400 uppercase">SAPE</th>
-                  <th className="text-left p-4 text-[10px] font-black text-gray-400 uppercase">Proceso</th>
-                  <th className="text-right p-4 text-[10px] font-black text-gray-400 uppercase">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredItems.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-16">
-                      <p className="text-gray-400 font-medium">{buscar ? 'No hay registros que coincidan' : 'No hay registros importados'}</p>
-                      {!buscar && <p className="text-gray-300 text-sm mt-1">Importa un CSV para comenzar</p>}
-                    </td>
-                  </tr>
-                ) : filteredItems.map(item => (
-                  <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                    <td className="p-4 font-bold text-gray-900 max-w-[280px]">
-                      <span className="block truncate" title={item.nombre_trato}>{item.nombre_trato}</span>
-                    </td>
-                    <td className="p-4 text-gray-500">{item.fase || '—'}</td>
-                    <td className="p-4">
-                      {item.carrera_interes
-                        ? <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-bold text-xs">{item.carrera_interes}</span>
-                        : <span className="text-gray-300">—</span>
-                      }
-                    </td>
-                    <td className="p-4 text-gray-500">{item.codigo_sape || '—'}</td>
-                    <td className="p-4 text-gray-500">{item.proceso || '—'}</td>
-                    <td className="p-4 text-right space-x-3">
-                      <button
-                        onClick={() => openEdit(item)}
-                        className="text-blue-600 hover:text-blue-800 text-sm font-bold"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        onClick={() => setDeletingItem(item)}
-                        className="text-red-500 hover:text-red-700 text-sm font-bold"
-                      >
-                        Eliminar
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {importResult && (
+        <div className={`relative border rounded-xl px-4 py-3 text-sm mb-4 ${
+          importResult.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-amber-50 border-amber-200 text-amber-800'
+        }`}>
+          <button onClick={() => setImportResult(null)} className="absolute top-2.5 right-3 opacity-50 hover:opacity-100 text-lg leading-none">&times;</button>
+          <div className="flex items-center gap-2 font-bold pr-6">
+            {importResult.type === 'success' && <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>}
+            {importResult.type === 'warning' && <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>}
+            {importResult.title}
           </div>
-          {filteredItems.length > 0 && (
-            <div className="px-4 py-2 border-t border-gray-50 text-xs text-gray-400 text-right">
-              {filteredItems.length} de {items.length} registros
-            </div>
+          {importResult.details && importResult.details.length > 0 && (
+            <ul className="mt-2 space-y-0.5 text-xs opacity-80">
+              {importResult.details.map((d, i) => <li key={i}>{d}</li>)}
+            </ul>
           )}
         </div>
       )}
 
-      {/* Modal importar CSV */}
-      {showImportModal && (
+      {/* Contenido */}
+      {loading ? (
+        <div className="flex items-center justify-center min-h-[200px]">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : listas.length === 0 ? (
+        <div className="text-center py-20 bg-white rounded-2xl border border-gray-100 shadow-sm">
+          <svg className="w-12 h-12 text-gray-200 mx-auto mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+          <p className="text-gray-400 font-medium">No hay listas creadas</p>
+          <p className="text-gray-300 text-sm mt-1">Creá una nueva lista importando un CSV</p>
+        </div>
+      ) : (
+        <div className="grid gap-3">
+          {listas.map(lista => (
+            <div
+              key={lista.id}
+              className={`bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer group ${lista.completada ? 'opacity-60' : ''}`}
+              onClick={() => navigate(`/listas-de-trabajo/${lista.id}`)}
+            >
+              <div className="flex items-center justify-between p-5">
+                <div className="flex items-center gap-4 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors truncate">{lista.nombre}</h3>
+                      {lista.completada && (
+                        <span className="bg-green-100 text-green-700 text-[10px] font-black uppercase px-2 py-0.5 rounded-full shrink-0">Completada</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {lista.count} registro{lista.count !== 1 ? 's' : ''} · {new Date(lista.created_at).toLocaleDateString('es-UY', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={(e) => toggleCompletada(lista, e)}
+                    className={`p-2 rounded-lg transition-colors ${
+                      lista.completada
+                        ? 'text-green-600 hover:bg-green-50'
+                        : 'text-gray-300 hover:text-green-600 hover:bg-green-50 opacity-0 group-hover:opacity-100'
+                    }`}
+                    title={lista.completada ? 'Desmarcar completada' : 'Marcar completada'}
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setDeletingLista(lista); }}
+                    className="text-gray-300 hover:text-red-500 p-2 rounded-lg hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                    title="Eliminar lista"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                  </button>
+                  <svg className="w-4 h-4 text-gray-300 group-hover:text-blue-500 transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Modal nueva lista */}
+      {showNewModal && (
         <>
-          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => !importing && setShowImportModal(false)} />
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => !importing && setShowNewModal(false)} />
           <div className="fixed inset-0 z-50 overflow-y-auto pointer-events-none">
             <div className="min-h-full flex items-start justify-center py-8 px-4">
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg pointer-events-auto animate-in zoom-in-95 duration-200">
-                <form onSubmit={handleImport}>
+                <form onSubmit={handleCreate}>
                   <div className="px-8 py-6 bg-blue-600 text-white rounded-t-2xl">
-                    <h3 className="text-xl font-bold">Importar CSV</h3>
-                    <p className="text-sm opacity-80">Importa oportunidades desde un CSV de Zoho CRM</p>
+                    <h3 className="text-xl font-bold">Nueva Lista de Trabajo</h3>
+                    <p className="text-sm opacity-80">Creá una nueva lista e importá registros desde un CSV</p>
                   </div>
                   <div className="p-8 space-y-5">
                     {importError && (
-                      <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 font-medium">
-                        {importError}
-                      </div>
+                      <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 font-medium">{importError}</div>
                     )}
                     <div>
-                      <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Archivo CSV</label>
+                      <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Nombre de la lista *</label>
+                      <input
+                        value={newNombre}
+                        onChange={e => setNewNombre(e.target.value)}
+                        required
+                        placeholder="ej: Zoho Marzo 2026"
+                        className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Archivo CSV (opcional)</label>
                       <input
                         type="file"
                         accept=".csv"
-                        required
                         onChange={e => setCsvFile(e.target.files?.[0] || null)}
                         className="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
                       />
                       <p className="text-[11px] text-gray-400 mt-1.5">
-                        Columnas obligatorias: <span className="font-semibold">Nombre de Trato</span>, <span className="font-semibold">Producto</span>. Opcionales: Fase, Codigo SAPE, Proceso.
+                        Columnas obligatorias: <span className="font-semibold">Nombre de Trato</span>, <span className="font-semibold">Producto</span>. Podés importar después si preferís.
                       </p>
                     </div>
                   </div>
                   <div className="px-8 py-4 bg-gray-50 rounded-b-2xl flex justify-end gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setShowImportModal(false)}
-                      disabled={importing}
-                      className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-all disabled:opacity-50"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={importing}
-                      className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center gap-2"
-                    >
-                      {importing ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          Importando...
-                        </>
-                      ) : 'Importar'}
+                    <button type="button" onClick={() => setShowNewModal(false)} disabled={importing} className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-all disabled:opacity-50">Cancelar</button>
+                    <button type="submit" disabled={importing} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center gap-2">
+                      {importing ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Creando...</>) : 'Crear Lista'}
                     </button>
                   </div>
                 </form>
@@ -416,129 +405,21 @@ const ListasTrabajo: React.FC = () => {
         </>
       )}
 
-      {/* Modal editar */}
-      {editingItem && (
+      {/* Modal eliminar lista */}
+      {deletingLista && (
         <>
-          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => !saving && setEditingItem(null)} />
-          <div className="fixed inset-0 z-50 overflow-y-auto pointer-events-none">
-            <div className="min-h-full flex items-start justify-center py-8 px-4">
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg pointer-events-auto animate-in zoom-in-95 duration-200">
-                <form onSubmit={handleEdit}>
-                  <div className="px-8 py-6 bg-blue-600 text-white rounded-t-2xl">
-                    <h3 className="text-xl font-bold">Editar Registro</h3>
-                    <p className="text-sm opacity-80 truncate">{editingItem.nombre_trato}</p>
-                  </div>
-                  <div className="p-8 space-y-4">
-                    {editError && (
-                      <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 font-medium">
-                        {editError}
-                      </div>
-                    )}
-                    <div>
-                      <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Nombre de Trato</label>
-                      <input
-                        value={editNombreTrato}
-                        onChange={e => setEditNombreTrato(e.target.value)}
-                        required
-                        className="w-full border-gray-200 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                      />
-                      {editNombreTrato && (
-                        <p className="text-[11px] text-gray-400 mt-1">
-                          Nombre extraído: <span className="font-semibold text-gray-600">{extractNombre(editNombreTrato)}</span>
-                        </p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Fase</label>
-                      <select
-                        value={editFase}
-                        onChange={e => setEditFase(e.target.value)}
-                        className="w-full border-gray-200 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                      >
-                        <option value="">— Sin fase —</option>
-                        {FASES.map(f => <option key={f} value={f}>{f}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Carrera</label>
-                      <select
-                        value={editCarrera}
-                        onChange={e => setEditCarrera(e.target.value)}
-                        className="w-full border-gray-200 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                      >
-                        <option value="">— Sin carrera —</option>
-                        {CODIGOS.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Código SAPE</label>
-                        <input
-                          value={editSape}
-                          onChange={e => setEditSape(e.target.value)}
-                          className="w-full border-gray-200 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-black text-gray-400 uppercase block mb-1">Proceso</label>
-                        <input
-                          value={editProceso}
-                          onChange={e => setEditProceso(e.target.value)}
-                          placeholder="ej: Marzo 2026"
-                          className="w-full border-gray-200 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="px-8 py-4 bg-gray-50 rounded-b-2xl flex justify-end gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setEditingItem(null)}
-                      disabled={saving}
-                      className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-all disabled:opacity-50"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={saving}
-                      className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-700 transition-all disabled:opacity-50"
-                    >
-                      {saving ? 'Guardando...' : 'Guardar Cambios'}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* Modal eliminar */}
-      {deletingItem && (
-        <>
-          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => !deleting && setDeletingItem(null)} />
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => !deleting && setDeletingLista(null)} />
           <div className="fixed inset-0 z-50 overflow-y-auto pointer-events-none">
             <div className="min-h-full flex items-center justify-center py-8 px-4">
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md pointer-events-auto animate-in zoom-in-95 duration-200">
                 <div className="p-8">
-                  <h3 className="text-lg font-bold text-gray-900 mb-2">Eliminar registro</h3>
-                  <p className="text-gray-500 text-sm">¿Confirmas que querés eliminar este registro? La acción no se puede deshacer.</p>
-                  <p className="mt-3 font-bold text-gray-800 text-sm bg-gray-50 rounded-lg px-3 py-2 truncate">{deletingItem.nombre_trato}</p>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">Eliminar lista</h3>
+                  <p className="text-gray-500 text-sm">¿Confirmas que querés eliminar esta lista y todos sus registros? La acción no se puede deshacer.</p>
+                  <p className="mt-3 font-bold text-gray-800 text-sm bg-gray-50 rounded-lg px-3 py-2">{deletingLista.nombre} ({deletingLista.count} registros)</p>
                 </div>
                 <div className="px-8 py-4 bg-gray-50 rounded-b-2xl flex justify-end gap-3">
-                  <button
-                    onClick={() => setDeletingItem(null)}
-                    disabled={deleting}
-                    className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-all disabled:opacity-50"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={handleDelete}
-                    disabled={deleting}
-                    className="bg-red-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-red-700 transition-all disabled:opacity-50"
-                  >
+                  <button onClick={() => setDeletingLista(null)} disabled={deleting} className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-all disabled:opacity-50">Cancelar</button>
+                  <button onClick={handleDeleteLista} disabled={deleting} className="bg-red-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-red-700 transition-all disabled:opacity-50">
                     {deleting ? 'Eliminando...' : 'Eliminar'}
                   </button>
                 </div>
