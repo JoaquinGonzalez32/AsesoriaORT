@@ -9,7 +9,6 @@ interface AuthContextType {
   profile: Profile | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, meta?: { nombre?: string; apellido?: string }) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -20,7 +19,6 @@ export const AuthContext = createContext<AuthContextType>({
   profile: null,
   loading: true,
   signIn: async () => {},
-  signUp: async () => {},
   signOut: async () => {},
   refreshProfile: async () => {},
 });
@@ -72,15 +70,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (error) throw error;
   };
 
-  const signUp = async (email: string, password: string, meta?: { nombre?: string; apellido?: string }) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { nombre: meta?.nombre || '', apellido: meta?.apellido || '', rol: 'asesor' } },
-    });
-    if (error) throw error;
-  };
-
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
@@ -95,7 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, loading, signIn, signUp, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ session, user, profile, loading, signIn, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

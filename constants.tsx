@@ -1,20 +1,10 @@
 import React from 'react';
 
-export const COLORS = {
-  primary: '#2563eb',
-  secondary: '#64748b',
-  success: '#22c55e',
-  danger: '#ef4444',
-  warning: '#f59e0b',
-  info: '#3b82f6',
-};
-
 export const ROUTES = {
   DASHBOARD: '/',
   LEADS: '/leads',
   OPPORTUNITIES: '/opportunities',
   RASES: '/rases',
-  REPORTS: '/reports',
   LOGIN: '/login',
   RECUPERAR_PASSWORD: '/recuperar-password',
   ACTUALIZAR_PASSWORD: '/actualizar-password',

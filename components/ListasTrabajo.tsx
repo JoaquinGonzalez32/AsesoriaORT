@@ -112,7 +112,30 @@ const ListasTrabajo: React.FC = () => {
     setImporting(true);
     setImportError(null);
     try {
-      // Crear la lista
+      // Si hay CSV, validar ANTES de crear la lista
+      let csvRows: Record<string, string>[] = [];
+      if (csvFile) {
+        const text = await csvFile.text();
+        csvRows = parseCSV(text);
+
+        if (csvRows.length === 0) {
+          setImportError('El archivo CSV está vacío');
+          setImporting(false);
+          return;
+        }
+        if (!('Nombre de Trato' in csvRows[0])) {
+          setImportError('El CSV debe tener la columna "Nombre de Trato"');
+          setImporting(false);
+          return;
+        }
+        if (!('Producto' in csvRows[0])) {
+          setImportError('El CSV debe tener la columna "Producto"');
+          setImporting(false);
+          return;
+        }
+      }
+
+      // Crear la lista (CSV ya validado)
       const { data: newLista, error: listaErr } = await supabase
         .from('listas')
         .insert([{ nombre: newNombre.trim() }])
@@ -120,26 +143,9 @@ const ListasTrabajo: React.FC = () => {
         .single();
       if (listaErr) throw listaErr;
 
-      // Si hay CSV, importar items
-      if (csvFile) {
-        const text = await csvFile.text();
-        const rows = parseCSV(text);
-
-        if (rows.length === 0) {
-          setImportError('El archivo CSV está vacío');
-          setImporting(false);
-          return;
-        }
-        if (!('Nombre de Trato' in rows[0])) {
-          setImportError('El CSV debe tener la columna "Nombre de Trato"');
-          setImporting(false);
-          return;
-        }
-        if (!('Producto' in rows[0])) {
-          setImportError('El CSV debe tener la columna "Producto"');
-          setImporting(false);
-          return;
-        }
+      // Importar items si hay CSV
+      if (csvFile && csvRows.length > 0) {
+        const rows = csvRows;
 
         const warnings: string[] = [];
         const rawItems = rows

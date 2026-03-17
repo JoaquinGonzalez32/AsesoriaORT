@@ -64,31 +64,46 @@ const AppLayout: React.FC = () => {
   const handleAddOpp = (oppData: any) => addOpp(oppData, user?.id);
   const handleAddRas = (rasData: any) => addRas(rasData, user?.id);
 
+  const [converting, setConverting] = useState(false);
+
   const convertToOpportunity = async (lead: Lead, extraData: any) => {
-    const newOpp: any = {
-      nombre: lead.nombre,
-      cedula: extraData.cedula || '',
-      telefono: extraData.telefono || '',
-      mail: extraData.mail || '',
-      sape: extraData.sape || '',
-      carrera_interes: lead.carrera_interes,
-      otros_intereses: extraData.otros_intereses || [],
-      fecha_lead: lead.fecha_lead,
-      ras_agendada: extraData.ras_agendada ?? false,
-      multiple_interes: extraData.multiple_interes ?? false,
-      liceo_tipo: extraData.liceo_tipo ?? 'Publico',
-      proceso_inicio: extraData.proceso_inicio || '',
-      fase_oportunidad: extraData.fase_oportunidad || 'Interesado',
-      comentario_extra: `[Conversion Lead]: ${lead.comentario}\n${extraData.comentario_extra || ''}`,
-    };
+    if (converting) return;
+    setConverting(true);
+    try {
+      const newOpp: any = {
+        nombre: lead.nombre,
+        cedula: extraData.cedula || '',
+        telefono: extraData.telefono || '',
+        mail: extraData.mail || '',
+        sape: extraData.sape || '',
+        carrera_interes: lead.carrera_interes,
+        otros_intereses: extraData.otros_intereses || [],
+        fecha_lead: lead.fecha_lead,
+        ras_agendada: extraData.ras_agendada ?? false,
+        multiple_interes: extraData.multiple_interes ?? false,
+        liceo_tipo: extraData.liceo_tipo ?? 'Publico',
+        proceso_inicio: extraData.proceso_inicio || '',
+        fase_oportunidad: extraData.fase_oportunidad || 'Interesado',
+        comentario_extra: `[Conversion Lead]: ${lead.comentario}\n${extraData.comentario_extra || ''}`,
+      };
 
-    if (extraData.ras_agendada && extraData.rasInfo) {
-      newOpp.rasInfo = extraData.rasInfo;
+      if (extraData.ras_agendada && extraData.rasInfo) {
+        newOpp.rasInfo = extraData.rasInfo;
+      }
+
+      await handleAddOpp(newOpp);
+      try {
+        await updateLead({ ...lead, convertido: true, updated_at: new Date().toISOString() });
+      } catch (leadErr) {
+        console.error('Oportunidad creada pero no se pudo marcar el lead como convertido:', leadErr);
+      }
+      navigate(ROUTES.OPPORTUNITIES);
+    } catch (err) {
+      console.error('Error al convertir lead:', err);
+      setError('Error al convertir el lead a oportunidad.');
+    } finally {
+      setConverting(false);
     }
-
-    await handleAddOpp(newOpp);
-    await updateLead({ ...lead, convertido: true, updated_at: new Date().toISOString() });
-    navigate(ROUTES.OPPORTUNITIES);
   };
 
   const navItems = [
@@ -119,7 +134,7 @@ const AppLayout: React.FC = () => {
     return (
       <Routes>
         <Route path={ROUTES.DASHBOARD} element={<Dashboard leads={leads} opportunities={opportunities} rases={rases} />} />
-        <Route path={ROUTES.LEADS} element={<LeadsManager leads={leads} onAdd={handleAddLead} onUpdate={updateLead} onDelete={deleteLead} onConvert={convertToOpportunity} onRefresh={fetchLeads} />} />
+        <Route path={ROUTES.LEADS} element={<LeadsManager leads={leads} onAdd={handleAddLead} onUpdate={updateLead} onDelete={deleteLead} onConvert={convertToOpportunity} onRefresh={fetchLeads} converting={converting} />} />
         <Route path={ROUTES.OPPORTUNITIES} element={<OpportunitiesManager opportunities={opportunities} onAdd={handleAddOpp} onUpdate={updateOpp} onDelete={deleteOpp} onRefresh={fetchOpportunities} />} />
         <Route path="/opportunities/:id" element={<OportunidadDetalle opportunities={opportunities} rases={rases} onUpdateOpp={updateOpp} onDeleteOpp={deleteOpp} onAddOpp={handleAddOpp} onAddRas={handleAddRas} onUpdateRas={updateRas} onDeleteRas={deleteRas} />} />
         <Route path={ROUTES.RASES} element={<RasesManager rases={rases} opportunities={opportunities} onAdd={handleAddRas} onUpdate={updateRas} onDelete={deleteRas} onUpdateOpp={updateOpp} />} />

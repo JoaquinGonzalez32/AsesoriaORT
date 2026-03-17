@@ -50,6 +50,44 @@ const CARRERA_HEX: Record<string, string> = {
   'GF': '#a855f7', 'WE': '#eab308',
 };
 
+// ---- Helpers (defined outside component to avoid re-creation on each render) ----
+const StatCard = ({ title, value, sub, iconColor, highlight }: { title: string; value: number; sub: string; iconColor: string; highlight?: boolean }) => (
+  <div className={`p-6 rounded-2xl shadow-sm border flex flex-col justify-between hover:shadow-md transition-shadow group ${highlight ? 'bg-gray-50 border-gray-200 ring-1 ring-gray-200' : 'bg-white border-gray-100'}`}>
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-gray-500 font-medium text-xs uppercase tracking-wider">{title}</h3>
+        <div className={`w-3 h-3 rounded-full ${iconColor} shadow-inner group-hover:scale-125 transition-transform`}></div>
+      </div>
+      <div className={`font-black text-gray-900 ${highlight ? 'text-5xl' : 'text-4xl'}`}>{value}</div>
+    </div>
+    <div className="mt-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">{sub}</div>
+  </div>
+);
+
+const SectionHeader = ({ title, subtitle, open, onToggle, color }: { title: string; subtitle: string; open: boolean; onToggle: () => void; color: string }) => (
+  <button type="button" onClick={onToggle} className="w-full flex items-center justify-between bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow group">
+    <div className="flex items-center gap-3">
+      <span className={`w-1.5 h-8 rounded-full ${color}`}></span>
+      <div className="text-left">
+        <h3 className="text-lg font-bold text-gray-900">{title}</h3>
+        <p className="text-xs text-gray-400 font-medium">{subtitle}</p>
+      </div>
+    </div>
+    <svg className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>
+);
+
+const EyeToggle = ({ label, visible, onToggle }: { label: string; visible: boolean; onToggle: () => void }) => (
+  <button type="button" onClick={onToggle} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 border ${visible ? 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50' : 'bg-gray-100 border-gray-200 text-gray-400 line-through hover:bg-gray-200'}`}>
+    {visible ? (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+    ) : (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+    )}
+    {label}
+  </button>
+);
+
 const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) => {
   // ---- Global vs Month toggle ----
   const [globalView, setGlobalView] = useState<'general' | 'mes'>('general');
@@ -73,6 +111,11 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) =>
     return activeOpps.filter(o => o.created_at && o.created_at.slice(0, 7) === filterYearMonth);
   }, [activeOpps, globalView, filterYearMonth]);
 
+  const kpiRases = useMemo(() => {
+    if (globalView === 'general') return activeRasesAll;
+    return activeRasesAll.filter(r => r.fecha_hora && r.fecha_hora.slice(0, 7) === filterYearMonth);
+  }, [activeRasesAll, globalView, filterYearMonth]);
+
   const globalStats = useMemo(() => ({
     totalLeads: kpiLeads.length,
     primerContacto: kpiLeads.filter(l => l.resultado_llamada === ResultadoLlamada.PrimerContacto).length,
@@ -80,8 +123,8 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) =>
     interesados: kpiLeads.filter(l => l.resultado_llamada === ResultadoLlamada.Interesado).length,
     totalOpps: kpiOpps.length,
     rasAgendadas: kpiOpps.filter(o => o.ras_agendada).length,
-    rasRealizadas: activeRasesAll.filter(r => r.resultado_ras === ResultadoRAS.Realizada).length,
-  }), [kpiLeads, kpiOpps, activeRasesAll]);
+    rasRealizadas: kpiRases.filter(r => r.resultado_ras === ResultadoRAS.Realizada).length,
+  }), [kpiLeads, kpiOpps, kpiRases]);
 
   const funnelData = [
     { name: 'Nuevos (1er C)', value: globalStats.primerContacto, color: '#3b82f6' },
@@ -200,44 +243,6 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) =>
     const carreraData = Object.entries(carreraMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
     return { total: filteredRases.length, presencial, online, pieData, agenteData, carreraData };
   }, [filteredRases]);
-
-  // ---- Helpers ----
-  const StatCard = ({ title, value, sub, iconColor, highlight }: { title: string; value: number; sub: string; iconColor: string; highlight?: boolean }) => (
-    <div className={`p-6 rounded-2xl shadow-sm border flex flex-col justify-between hover:shadow-md transition-shadow group ${highlight ? 'bg-gray-50 border-gray-200 ring-1 ring-gray-200' : 'bg-white border-gray-100'}`}>
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-gray-500 font-medium text-xs uppercase tracking-wider">{title}</h3>
-          <div className={`w-3 h-3 rounded-full ${iconColor} shadow-inner group-hover:scale-125 transition-transform`}></div>
-        </div>
-        <div className={`font-black text-gray-900 ${highlight ? 'text-5xl' : 'text-4xl'}`}>{value}</div>
-      </div>
-      <div className="mt-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">{sub}</div>
-    </div>
-  );
-
-  const SectionHeader = ({ title, subtitle, open, onToggle, color }: { title: string; subtitle: string; open: boolean; onToggle: () => void; color: string }) => (
-    <button type="button" onClick={onToggle} className="w-full flex items-center justify-between bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow group">
-      <div className="flex items-center gap-3">
-        <span className={`w-1.5 h-8 rounded-full ${color}`}></span>
-        <div className="text-left">
-          <h3 className="text-lg font-bold text-gray-900">{title}</h3>
-          <p className="text-xs text-gray-400 font-medium">{subtitle}</p>
-        </div>
-      </div>
-      <svg className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
-    </button>
-  );
-
-  const EyeToggle = ({ label, visible, onToggle }: { label: string; visible: boolean; onToggle: () => void }) => (
-    <button type="button" onClick={onToggle} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 border ${visible ? 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50' : 'bg-gray-100 border-gray-200 text-gray-400 line-through hover:bg-gray-200'}`}>
-      {visible ? (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-      ) : (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-      )}
-      {label}
-    </button>
-  );
 
   const selectClass = "bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold cursor-pointer focus:ring-2 focus:ring-blue-500 outline-none";
 

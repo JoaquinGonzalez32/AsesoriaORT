@@ -228,9 +228,20 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
     }
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (rasToDelete) {
       onDelete(rasToDelete.ras_id);
+      // Actualizar ras_agendada=false en la oportunidad vinculada
+      if (onUpdateOpp && rasToDelete.opp_id) {
+        const linkedOpp = opportunities.find(o => o.opp_id === rasToDelete.opp_id);
+        if (linkedOpp) {
+          try {
+            await onUpdateOpp({ ...linkedOpp, ras_agendada: false, ras_asistio: false, updated_at: new Date().toISOString() });
+          } catch (err) {
+            console.error('Error updating opp after RAS delete:', err);
+          }
+        }
+      }
       setRasToDelete(null);
     }
   };
@@ -688,7 +699,7 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
                   <div className="grid grid-cols-3 gap-4">
                     <div>
                       <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Fecha</label>
-                      <input name="fecha_hora" type="date" defaultValue={rasToEdit.fecha_hora.split('T')[0]} className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm w-full" />
+                      <input name="fecha_hora" type="datetime-local" step="1800" defaultValue={rasToEdit.fecha_hora.slice(0, 16)} className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm w-full" />
                     </div>
                     <div>
                       <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Modalidad</label>

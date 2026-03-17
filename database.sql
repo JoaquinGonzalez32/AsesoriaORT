@@ -76,46 +76,118 @@ ALTER TABLE oportunidades ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rases ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================
--- Políticas de LEADS — Solo usuarios autenticados
+-- Helper: obtener rol del usuario actual desde profiles
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.get_my_role()
+RETURNS TEXT
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+AS $$
+  SELECT rol FROM public.profiles WHERE id = auth.uid();
+$$;
+
+-- ============================================================
+-- Políticas de LEADS
 -- ============================================================
 DROP POLICY IF EXISTS "Leads_Select_Policy" ON leads;
-CREATE POLICY "Leads_Select_Policy" ON leads FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Leads_Select_Policy" ON leads FOR SELECT TO authenticated
+  USING (deleted_at IS NULL);
 
 DROP POLICY IF EXISTS "Leads_Insert_Policy" ON leads;
-CREATE POLICY "Leads_Insert_Policy" ON leads FOR INSERT TO authenticated WITH CHECK (owner = auth.uid());
+CREATE POLICY "Leads_Insert_Policy" ON leads FOR INSERT TO authenticated
+  WITH CHECK (owner = auth.uid());
 
 DROP POLICY IF EXISTS "Leads_Update_Policy" ON leads;
-CREATE POLICY "Leads_Update_Policy" ON leads FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Leads_Update_Policy" ON leads FOR UPDATE TO authenticated
+  USING (owner = auth.uid() OR public.get_my_role() IN ('admin', 'coordinador'))
+  WITH CHECK (owner = auth.uid() OR public.get_my_role() IN ('admin', 'coordinador'));
 
 DROP POLICY IF EXISTS "Leads_Delete_Policy" ON leads;
-CREATE POLICY "Leads_Delete_Policy" ON leads FOR DELETE TO authenticated USING (true);
+CREATE POLICY "Leads_Delete_Policy" ON leads FOR DELETE TO authenticated
+  USING (owner = auth.uid() OR public.get_my_role() IN ('admin', 'coordinador'));
 
 -- ============================================================
--- Políticas de OPORTUNIDADES — Solo usuarios autenticados
+-- Políticas de OPORTUNIDADES
 -- ============================================================
 DROP POLICY IF EXISTS "Opps_Select_Policy" ON oportunidades;
-CREATE POLICY "Opps_Select_Policy" ON oportunidades FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Opps_Select_Policy" ON oportunidades FOR SELECT TO authenticated
+  USING (deleted_at IS NULL);
 
 DROP POLICY IF EXISTS "Opps_Insert_Policy" ON oportunidades;
-CREATE POLICY "Opps_Insert_Policy" ON oportunidades FOR INSERT TO authenticated WITH CHECK (owner = auth.uid());
+CREATE POLICY "Opps_Insert_Policy" ON oportunidades FOR INSERT TO authenticated
+  WITH CHECK (owner = auth.uid() OR owner IS NULL);
 
 DROP POLICY IF EXISTS "Opps_Update_Policy" ON oportunidades;
-CREATE POLICY "Opps_Update_Policy" ON oportunidades FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Opps_Update_Policy" ON oportunidades FOR UPDATE TO authenticated
+  USING (owner = auth.uid() OR owner IS NULL OR public.get_my_role() IN ('admin', 'coordinador'))
+  WITH CHECK (owner = auth.uid() OR owner IS NULL OR public.get_my_role() IN ('admin', 'coordinador'));
 
 DROP POLICY IF EXISTS "Opps_Delete_Policy" ON oportunidades;
-CREATE POLICY "Opps_Delete_Policy" ON oportunidades FOR DELETE TO authenticated USING (true);
+CREATE POLICY "Opps_Delete_Policy" ON oportunidades FOR DELETE TO authenticated
+  USING (owner = auth.uid() OR owner IS NULL OR public.get_my_role() IN ('admin', 'coordinador'));
 
 -- ============================================================
--- Políticas de RASES — Solo usuarios autenticados
+-- Políticas de RASES
 -- ============================================================
 DROP POLICY IF EXISTS "Rases_Select_Policy" ON rases;
-CREATE POLICY "Rases_Select_Policy" ON rases FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Rases_Select_Policy" ON rases FOR SELECT TO authenticated
+  USING (deleted_at IS NULL);
 
 DROP POLICY IF EXISTS "Rases_Insert_Policy" ON rases;
-CREATE POLICY "Rases_Insert_Policy" ON rases FOR INSERT TO authenticated WITH CHECK (owner = auth.uid());
+CREATE POLICY "Rases_Insert_Policy" ON rases FOR INSERT TO authenticated
+  WITH CHECK (owner = auth.uid() OR owner IS NULL);
 
 DROP POLICY IF EXISTS "Rases_Update_Policy" ON rases;
-CREATE POLICY "Rases_Update_Policy" ON rases FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Rases_Update_Policy" ON rases FOR UPDATE TO authenticated
+  USING (owner = auth.uid() OR owner IS NULL OR public.get_my_role() IN ('admin', 'coordinador'))
+  WITH CHECK (owner = auth.uid() OR owner IS NULL OR public.get_my_role() IN ('admin', 'coordinador'));
 
 DROP POLICY IF EXISTS "Rases_Delete_Policy" ON rases;
-CREATE POLICY "Rases_Delete_Policy" ON rases FOR DELETE TO authenticated USING (true);
+CREATE POLICY "Rases_Delete_Policy" ON rases FOR DELETE TO authenticated
+  USING (owner = auth.uid() OR owner IS NULL OR public.get_my_role() IN ('admin', 'coordinador'));
+
+-- ============================================================
+-- Políticas de PROFILES — proteger campo rol
+-- ============================================================
+DROP POLICY IF EXISTS "Profiles_Select_Policy" ON profiles;
+CREATE POLICY "Profiles_Select_Policy" ON profiles FOR SELECT TO authenticated
+  USING (true);
+
+DROP POLICY IF EXISTS "Profiles_Update_Own" ON profiles;
+CREATE POLICY "Profiles_Update_Own" ON profiles FOR UPDATE TO authenticated
+  USING (id = auth.uid())
+  WITH CHECK (id = auth.uid() AND (rol = (SELECT rol FROM profiles WHERE id = auth.uid())));
+
+DROP POLICY IF EXISTS "Profiles_Update_Admin" ON profiles;
+CREATE POLICY "Profiles_Update_Admin" ON profiles FOR UPDATE TO authenticated
+  USING (public.get_my_role() = 'admin')
+  WITH CHECK (public.get_my_role() = 'admin');
+
+-- ============================================================
+-- Políticas de LISTAS y LISTAS_DE_TRABAJO
+-- ============================================================
+ALTER TABLE IF EXISTS listas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS listas_de_trabajo ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Listas_Select" ON listas;
+CREATE POLICY "Listas_Select" ON listas FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "Listas_Insert" ON listas;
+CREATE POLICY "Listas_Insert" ON listas FOR INSERT TO authenticated WITH CHECK (true);
+DROP POLICY IF EXISTS "Listas_Update" ON listas;
+CREATE POLICY "Listas_Update" ON listas FOR UPDATE TO authenticated
+  USING (public.get_my_role() IN ('admin', 'coordinador'))
+  WITH CHECK (public.get_my_role() IN ('admin', 'coordinador'));
+DROP POLICY IF EXISTS "Listas_Delete" ON listas;
+CREATE POLICY "Listas_Delete" ON listas FOR DELETE TO authenticated
+  USING (public.get_my_role() IN ('admin', 'coordinador'));
+
+DROP POLICY IF EXISTS "ListasDeTrabajo_Select" ON listas_de_trabajo;
+CREATE POLICY "ListasDeTrabajo_Select" ON listas_de_trabajo FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "ListasDeTrabajo_Insert" ON listas_de_trabajo;
+CREATE POLICY "ListasDeTrabajo_Insert" ON listas_de_trabajo FOR INSERT TO authenticated WITH CHECK (true);
+DROP POLICY IF EXISTS "ListasDeTrabajo_Update" ON listas_de_trabajo;
+CREATE POLICY "ListasDeTrabajo_Update" ON listas_de_trabajo FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "ListasDeTrabajo_Delete" ON listas_de_trabajo;
+CREATE POLICY "ListasDeTrabajo_Delete" ON listas_de_trabajo FOR DELETE TO authenticated
+  USING (public.get_my_role() IN ('admin', 'coordinador'));

@@ -108,6 +108,7 @@ export async function syncListaItemsWithOportunidades(
       fecha_lead: today,
       ras_agendada: false,
       multiple_interes: false,
+      owner: userId || null,
       created_at: now,
       updated_at: now,
     }));
@@ -131,6 +132,26 @@ export async function syncListaItemsWithOportunidades(
       for (const item of toCreate) {
         const oppId = newSapeToOpp[item.codigo_sape!] || null;
         result.items.push({ ...item, opp_id: oppId, tag: 'SIN CONTACTAR' });
+      }
+
+      // Escribir opp_id de vuelta a listas_de_trabajo para los items creados
+      const updates = toCreate
+        .map(item => ({
+          codigo_sape: item.codigo_sape!,
+          opp_id: newSapeToOpp[item.codigo_sape!] || null,
+          lista_id: item.lista_id,
+        }))
+        .filter(u => u.opp_id);
+
+      for (const u of updates) {
+        const { error: linkErr } = await supabase
+          .from('listas_de_trabajo')
+          .update({ opp_id: u.opp_id })
+          .eq('lista_id', u.lista_id)
+          .eq('codigo_sape', u.codigo_sape);
+        if (linkErr) {
+          result.errors.push(`Error vinculando opp a lista (SAPE ${u.codigo_sape}): ${linkErr.message}`);
+        }
       }
     }
   }

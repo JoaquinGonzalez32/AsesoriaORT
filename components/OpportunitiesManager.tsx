@@ -448,11 +448,12 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
           return;
         }
 
-        const data = lines.slice(1).map((line, idx) => {
+        const data: Record<string, string>[] = lines.slice(1).map((line, idx) => {
           const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.trim().replace(/^"|"$/g, ''));
           const obj: Record<string, string> = {};
           headers.forEach((h, i) => { obj[h] = values[i] || ''; });
-          return { ...obj, _fila: String(idx + 2) };
+          obj._fila = String(idx + 2);
+          return obj;
         });
 
         const advertencias: string[] = [];
@@ -540,19 +541,21 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
     reader.readAsText(file);
   };
 
+  const escapeCSV = (val: string) => `"${(val || '').replace(/"/g, '""')}"`;
+
   const handleExportCSV = () => {
     if (activeOpps.length === 0) { alert('No hay datos para exportar.'); return; }
     const headers = ['Nombre', 'CI', 'Mail', 'Carrera', 'Liceo', 'Tipo Liceo', 'Fecha Lead', 'RAS Agendada', 'Estado'];
     const rows = activeOpps.map(o => [
-      `"${o.nombre}"`, 
-      `"${o.cedula || ''}"`, 
-      `"${o.mail || ''}"`, 
-      `"${o.carrera_interes}"`, 
-      `"${o.liceo}"`, 
-      `"${o.liceo_tipo}"`, 
-      `"${o.fecha_lead}"`, 
+      escapeCSV(o.nombre),
+      escapeCSV(o.cedula || ''),
+      escapeCSV(o.mail || ''),
+      escapeCSV(o.carrera_interes),
+      escapeCSV(o.liceo),
+      escapeCSV(o.liceo_tipo),
+      escapeCSV(o.fecha_lead),
       o.ras_agendada ? 'SÍ' : 'NO',
-      `"${o.proceso_inicio}"`
+      escapeCSV(o.proceso_inicio)
     ]);
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });

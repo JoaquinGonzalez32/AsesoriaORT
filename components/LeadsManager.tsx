@@ -10,11 +10,12 @@ interface LeadsManagerProps {
   onAdd: (lead: Omit<Lead, 'lead_id' | 'created_at' | 'updated_at'>) => void;
   onUpdate: (lead: Lead) => void;
   onDelete: (id: string) => void;
-  onConvert: (lead: Lead, extra: any) => void;
+  onConvert: (lead: Lead, extra: any) => Promise<void> | void;
+  converting?: boolean;
   onRefresh?: () => void;
 }
 
-const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onDelete, onConvert, onRefresh }) => {
+const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onDelete, onConvert, onRefresh, converting }) => {
   const [filter, setFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [monthFilter, setMonthFilter] = useState<string>(String(new Date().getMonth() + 1).padStart(2, '0'));
@@ -77,6 +78,7 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
 
   const activeLeads = useMemo(() => {
     return (leads || []).filter(l => {
+      if (l.deleted_at) return false;
       const s = filter.toLowerCase();
       const matchesSearch = !filter || (l.nombre || '').toLowerCase().includes(s);
       const matchesStatus = !statusFilter || l.resultado_llamada === statusFilter;
@@ -198,11 +200,12 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
           return;
         }
 
-        const data = lines.slice(1).map((line, idx) => {
+        const data: Record<string, string>[] = lines.slice(1).map((line, idx) => {
           const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.trim().replace(/^"|"$/g, ''));
           const obj: Record<string, string> = {};
           headers.forEach((h, i) => { obj[h] = values[i] || ''; });
-          return { ...obj, _fila: String(idx + 2) };
+          obj._fila = String(idx + 2);
+          return obj;
         });
 
         const advertencias: string[] = [];
@@ -888,7 +891,7 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
                   </div>
                   <div className="px-8 py-6 bg-gray-50 flex justify-end gap-4 border-t border-gray-100 rounded-b-2xl shrink-0">
                     <button type="button" onClick={() => setShowConvertModal(null)} className="font-bold text-gray-500">Cancelar</button>
-                    <button type="submit" className="bg-green-600 text-white px-8 py-2.5 rounded-xl font-bold shadow-lg hover:bg-green-700 transition-all">Confirmar Conversión</button>
+                    <button type="submit" disabled={converting} className="bg-green-600 text-white px-8 py-2.5 rounded-xl font-bold shadow-lg hover:bg-green-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed">{converting ? 'Convirtiendo...' : 'Confirmar Conversión'}</button>
                   </div>
                 </form>
               </div>

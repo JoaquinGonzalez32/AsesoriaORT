@@ -1,14 +1,13 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "experimentalDecorators": true,
-    "useDefineForClassFields": false,
     "module": "ESNext",
     "lib": [
       "ES2022",
       "DOM",
       "DOM.Iterable"
     ],
+    "strict": true,
     "skipLibCheck": true,
     "types": [
       "node",
@@ -26,5 +25,12 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "exclude": [
+    "supabase/**",
+    "dist/**",
+    "node_modules/**",
+    "scripts/**",
+    "migrations/**"
+  ]
 }

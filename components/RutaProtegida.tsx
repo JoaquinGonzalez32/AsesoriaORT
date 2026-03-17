@@ -1,9 +1,17 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
 const RutaProtegida: React.FC = () => {
   const { session, profile, loading, signOut } = useAuth();
+  const [deactivated, setDeactivated] = useState(false);
+
+  useEffect(() => {
+    if (profile && !profile.activo) {
+      setDeactivated(true);
+      signOut().catch(() => {});
+    }
+  }, [profile, signOut]);
 
   if (loading) {
     return (
@@ -17,8 +25,7 @@ const RutaProtegida: React.FC = () => {
     return <Navigate to="/login" replace />;
   }
 
-  if (profile && !profile.activo) {
-    signOut();
+  if (deactivated) {
     return (
       <div className="flex items-center justify-center min-h-screen px-4">
         <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-6 py-4 font-medium max-w-md text-center">

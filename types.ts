@@ -70,6 +70,7 @@ export interface Oportunidad {
   liceo: string;
   fecha_lead: string;
   ras_agendada: boolean;
+  ras_asistio?: boolean;
   multiple_interes: boolean;
   liceo_tipo: LiceoTipo;
   ras_hecha_por: string | null;
@@ -100,17 +101,3 @@ export interface RAS {
   deleted_at?: string | null;
 }
 
-export interface User {
-  id: string;
-  email: string;
-  name?: string;
-}
-
-export interface KPIStats {
-  totalLeads: number;
-  contactados: number;
-  interesados: number;
-  totalOpps: number;
-  rasAgendadas: number;
-  rasRealizadas: number;
-}

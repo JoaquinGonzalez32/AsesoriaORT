@@ -1,8 +1,9 @@
 import "@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
+const ALLOWED_ORIGIN = Deno.env.get("ALLOWED_ORIGIN") || "*";
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
@@ -68,11 +69,34 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Validar inputs
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return new Response(
+        JSON.stringify({ error: "Formato de email inválido" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    if (password.length < 6) {
+      return new Response(
+        JSON.stringify({ error: "La contraseña debe tener al menos 6 caracteres" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    if (nombre.length > 100 || apellido.length > 100) {
+      return new Response(
+        JSON.stringify({ error: "Nombre y apellido no pueden superar 100 caracteres" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    const validRoles = ["admin", "coordinador", "asesor"];
+    const safeRol = validRoles.includes(rol) ? rol : "asesor";
+
     const { data, error } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
-      user_metadata: { nombre, apellido, rol: rol || "asesor" },
+      user_metadata: { nombre, apellido, rol: safeRol },
     });
 
     if (error) {

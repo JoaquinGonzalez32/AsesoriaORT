@@ -8,8 +8,8 @@ interface RasActions {
 }
 
   const VALID_COLS = [
-    'nombre', 'cedula', 'mail', 'telefono', 'sape', 'carrera_interes', 'otros_intereses',
-    'liceo', 'fecha_lead', 'ras_agendada', 'multiple_interes',
+    'nombre', 'nombre_trato', 'cedula', 'mail', 'telefono', 'sape', 'carrera_interes', 'otros_intereses',
+    'liceo', 'fecha_lead', 'ras_agendada', 'ras_asistio', 'multiple_interes',
     'liceo_tipo', 'ras_hecha_por', 'proceso_inicio', 'fase_oportunidad',
     'comentario_extra'
   ];
@@ -56,16 +56,23 @@ export function useOpportunities(rasActions: RasActions) {
     setOpportunities(prev => [newOpp, ...prev]);
 
     if (newOpp.ras_agendada && rasInfo) {
-      await rasActions.addRas({
-        opp_id: newOpp.opp_id,
-        titulo: `Reunión de Asesoramiento - ${newOpp.nombre} - ${rasInfo.agente_nombre}`,
-        nombre_interesado: newOpp.nombre,
-        agente_nombre: rasInfo.agente_nombre,
-        fecha_hora: rasInfo.fecha_hora,
-        modalidad: rasInfo.modalidad,
-        carrera: newOpp.carrera_interes,
-        estado_oportunidad: newOpp.proceso_inicio,
-      }, userId);
+      try {
+        await rasActions.addRas({
+          opp_id: newOpp.opp_id,
+          titulo: `Reunión de Asesoramiento - ${newOpp.nombre} - ${rasInfo.agente_nombre}`,
+          nombre_interesado: newOpp.nombre,
+          agente_nombre: rasInfo.agente_nombre,
+          fecha_hora: rasInfo.fecha_hora,
+          modalidad: rasInfo.modalidad,
+          carrera: newOpp.carrera_interes,
+          estado_oportunidad: newOpp.proceso_inicio,
+        }, userId);
+      } catch (rasErr) {
+        // Rollback ras_agendada si falla la creación de RAS
+        console.warn('Error al crear RAS, revirtiendo ras_agendada:', rasErr);
+        await supabase.from('oportunidades').update({ ras_agendada: false }).eq('opp_id', newOpp.opp_id);
+        setOpportunities(prev => prev.map(o => o.opp_id === newOpp.opp_id ? { ...o, ras_agendada: false } : o));
+      }
     }
   };
 
@@ -76,16 +83,24 @@ export function useOpportunities(rasActions: RasActions) {
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = await supabase.from('oportunidades').update(dbPayload).eq('opp_id', opp_id);
+    const { data: updatedData, error } = await supabase
+      .from('oportunidades')
+      .update(dbPayload)
+      .eq('opp_id', opp_id)
+      .select();
     if (error) { throw error; }
-    setOpportunities(prev => prev.map(o => o.opp_id === updated.opp_id ? updated : o));
+    const serverOpp = updatedData?.[0] || updated;
+    setOpportunities(prev => prev.map(o => o.opp_id === updated.opp_id ? serverOpp : o));
 
     // Sincronizar fase a listas_de_trabajo
     if (updated.fase_oportunidad) {
-      await supabase
+      const { error: syncErr } = await supabase
         .from('listas_de_trabajo')
         .update({ fase: updated.fase_oportunidad })
         .eq('opp_id', opp_id);
+      if (syncErr) {
+        console.warn('Error sincronizando fase a listas_de_trabajo:', syncErr.message);
+      }
     }
 
     if (updated.ras_agendada && rasInfo) {

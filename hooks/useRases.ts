@@ -2,6 +2,23 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { RAS } from '../types';
 
+const VALID_RAS_COLS = [
+  'opp_id', 'titulo', 'nombre_interesado', 'agente_nombre',
+  'fecha_hora', 'modalidad', 'carrera', 'estado_oportunidad',
+  'resultado_ras', 'comentario'
+];
+
+const pickValidRasCols = (obj: Record<string, any>) => {
+  const result: Record<string, any> = {};
+  for (const col of VALID_RAS_COLS) {
+    if (col in obj) {
+      const val = obj[col];
+      result[col] = val === '' ? null : val;
+    }
+  }
+  return result;
+};
+
 export function useRases() {
   const [rases, setRases] = useState<RAS[]>([]);
 
@@ -20,10 +37,13 @@ export function useRases() {
   };
 
   const addRas = async (rasData: any, userId?: string): Promise<RAS | undefined> => {
-    const { data, error } = await supabase.from('rases').insert([{ ...rasData, owner: userId || null }]).select();
+    const payload = {
+      ...pickValidRasCols(rasData),
+      owner: userId || null,
+    };
+    const { data, error } = await supabase.from('rases').insert([payload]).select();
     if (error) {
-      console.warn('No se pudo guardar la RAS.', error.message);
-      return undefined;
+      throw new Error('No se pudo guardar la RAS: ' + error.message);
     }
     if (data?.[0]) {
       setRases(prev => [...prev, data[0]]);
@@ -32,7 +52,8 @@ export function useRases() {
   };
 
   const updateRas = async (rasId: string, rasData: any) => {
-    const { data, error } = await supabase.from('rases').update(rasData).eq('ras_id', rasId).select();
+    const payload = pickValidRasCols(rasData);
+    const { data, error } = await supabase.from('rases').update(payload).eq('ras_id', rasId).select();
     if (error) throw error;
     if (data?.[0]) setRases(prev => prev.map(r => r.ras_id === rasId ? data[0] : r));
   };
