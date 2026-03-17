@@ -10,7 +10,8 @@
       "Bash(timeout 10 npx vite build:*)",
       "Bash(npx supabase:*)",
       "Bash(find:*)",
-      "Bash(xxd:*)"
+      "Bash(xxd:*)",
+      "Bash(cd:*)"
     ]
   }
 }
