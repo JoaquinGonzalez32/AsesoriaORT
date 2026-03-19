@@ -35,6 +35,17 @@ export enum ResultadoRAS {
   Cancelada = 'Cancelada'
 }
 
+export enum MotivoDesinteres {
+  Costos = 'Costos',
+  CambioVocacional = 'Cambio Vocacional',
+  Horarios = 'Horarios',
+  ModalidadUbicacion = 'Modalidad/Ubicación',
+  CambioProceso = 'Cambio Proceso',
+  OtraCarreraOrt = 'Otra Carrera ORT',
+  NoEspecifica = 'No Especifica',
+  Incontactables = 'Incontactables',
+}
+
 export enum HorarioLlamada {
   Manana = 'Mañana',
   Tarde = 'Tarde',
@@ -77,6 +88,7 @@ export interface Oportunidad {
   proceso_inicio: string;
   fase_oportunidad: FaseOportunidad;
   comentario_extra: string;
+  motivo_desinteres?: MotivoDesinteres | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;

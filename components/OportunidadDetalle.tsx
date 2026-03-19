@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Oportunidad, RAS, FaseOportunidad, LiceoTipo, ModalidadRAS, ResultadoRAS } from '../types';
+import { Oportunidad, RAS, FaseOportunidad, MotivoDesinteres, LiceoTipo, ModalidadRAS, ResultadoRAS } from '../types';
 import { supabase } from '../lib/supabase';
 
 import { ROUTES } from '../constants';
@@ -90,6 +90,7 @@ const OportunidadDetalle: React.FC<OportunidadDetalleProps> = ({
         sape: opp.sape || '',
         carrera_interes: opp.carrera_interes,
         fase_oportunidad: opp.fase_oportunidad,
+        motivo_desinteres: opp.motivo_desinteres || null,
         proceso_inicio: opp.proceso_inicio,
         liceo_tipo: opp.liceo_tipo,
         ras_agendada: opp.ras_agendada,
@@ -100,7 +101,11 @@ const OportunidadDetalle: React.FC<OportunidadDetalleProps> = ({
   }, [opp]);
 
   const updateField = (field: string, value: any) => {
-    setOppForm(p => ({ ...p, [field]: value }));
+    if (field === 'fase_oportunidad' && value !== FaseOportunidad.NoInteresado) {
+      setOppForm(p => ({ ...p, [field]: value, motivo_desinteres: null }));
+    } else {
+      setOppForm(p => ({ ...p, [field]: value }));
+    }
     setFormDirty(true);
   };
 
@@ -326,7 +331,7 @@ const OportunidadDetalle: React.FC<OportunidadDetalleProps> = ({
         ) : (
           <div className="flex items-center gap-3">
             <button
-              onClick={() => { if (opp) { setOppForm({ nombre: opp.nombre, cedula: opp.cedula || '', mail: opp.mail || '', telefono: opp.telefono || '', sape: opp.sape || '', carrera_interes: opp.carrera_interes, fase_oportunidad: opp.fase_oportunidad, proceso_inicio: opp.proceso_inicio, liceo_tipo: opp.liceo_tipo, ras_agendada: opp.ras_agendada, comentario_extra: opp.comentario_extra || '' }); setFormDirty(false); } setEditingOpp(false); }}
+              onClick={() => { if (opp) { setOppForm({ nombre: opp.nombre, cedula: opp.cedula || '', mail: opp.mail || '', telefono: opp.telefono || '', sape: opp.sape || '', carrera_interes: opp.carrera_interes, fase_oportunidad: opp.fase_oportunidad, motivo_desinteres: opp.motivo_desinteres || null, proceso_inicio: opp.proceso_inicio, liceo_tipo: opp.liceo_tipo, ras_agendada: opp.ras_agendada, comentario_extra: opp.comentario_extra || '' }); setFormDirty(false); } setEditingOpp(false); }}
               className="px-4 py-2 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-colors"
             >
               Cancelar
@@ -359,6 +364,9 @@ const OportunidadDetalle: React.FC<OportunidadDetalleProps> = ({
               <InlineField label="SAPE" value={oppForm.sape || ''} onChange={() => {}} highlight />
               <InlineSelect label="Carrera" value={oppForm.carrera_interes || ''} onChange={v => updateField('carrera_interes', v)} options={CARRERAS_OPTIONS.map(c => ({ value: c, label: c }))} editing={editingOpp} />
               <InlineSelect label="Fase" value={oppForm.fase_oportunidad || ''} onChange={v => updateField('fase_oportunidad', v)} options={Object.values(FaseOportunidad).map(f => ({ value: f, label: f }))} editing={editingOpp} />
+              {oppForm.fase_oportunidad === FaseOportunidad.NoInteresado && (
+                <InlineSelect label="Motivo" value={oppForm.motivo_desinteres || ''} onChange={v => updateField('motivo_desinteres', v || null)} options={[{ value: '', label: '— Sin especificar —' }, ...Object.values(MotivoDesinteres).map(m => ({ value: m, label: m }))]} editing={editingOpp} />
+              )}
               <InlineSelect label="Proceso Inicio" value={oppForm.proceso_inicio || ''} onChange={v => updateField('proceso_inicio', v)} options={[{ value: '', label: '—' }, ...PROCESO_OPTIONS.map(p => ({ value: p, label: p }))]} editing={editingOpp} />
               <InlineSelect label="Tipo Liceo" value={oppForm.liceo_tipo || ''} onChange={v => updateField('liceo_tipo', v)} options={Object.values(LiceoTipo).map(t => ({ value: t, label: t }))} editing={editingOpp} />
               <InlineField label="Fecha Lead" value={oppForm.fecha_lead || opp.fecha_lead || ''} onChange={v => updateField('fecha_lead', v)} type="date" editing={editingOpp} />

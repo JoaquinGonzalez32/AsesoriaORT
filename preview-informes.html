@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Preview - Informes Word</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f1f5f9; color: #1e293b; padding: 40px 20px; }
+
+  .tabs { display: flex; gap: 8px; max-width: 820px; margin: 0 auto 24px; }
+  .tab { padding: 10px 24px; border-radius: 10px 10px 0 0; background: #e2e8f0; font-weight: 700; font-size: 14px; cursor: pointer; border: none; color: #64748b; transition: all .2s; }
+  .tab.active { background: white; color: #1e40af; box-shadow: 0 -2px 8px rgba(0,0,0,.06); }
+
+  /* Simula una hoja A4 */
+  .page { display: none; max-width: 820px; margin: 0 auto; background: white; padding: 60px 64px; box-shadow: 0 4px 24px rgba(0,0,0,.08); border-radius: 0 8px 8px 8px; min-height: 1100px; }
+  .page.active { display: block; }
+
+  /* Header del informe */
+  .report-header { border-bottom: 3px solid #1e40af; padding-bottom: 20px; margin-bottom: 32px; display: flex; justify-content: space-between; align-items: flex-end; }
+  .report-header h1 { font-size: 26px; color: #1e40af; font-weight: 800; letter-spacing: -0.5px; }
+  .report-header .subtitle { font-size: 13px; color: #64748b; margin-top: 4px; }
+  .report-header .meta { text-align: right; font-size: 12px; color: #94a3b8; line-height: 1.8; }
+  .report-header .meta strong { color: #475569; }
+
+  /* Secciones */
+  .section { margin-bottom: 32px; }
+  .section-title { font-size: 15px; font-weight: 800; color: #1e40af; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 16px; padding-bottom: 6px; border-bottom: 1.5px solid #e2e8f0; }
+
+  /* KPI cards */
+  .kpi-row { display: flex; gap: 16px; margin-bottom: 24px; }
+  .kpi { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px 20px; text-align: center; }
+  .kpi-value { font-size: 32px; font-weight: 800; color: #1e293b; }
+  .kpi-label { font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+  .kpi-value.green { color: #16a34a; }
+  .kpi-value.blue { color: #2563eb; }
+  .kpi-value.purple { color: #7c3aed; }
+  .kpi-value.amber { color: #d97706; }
+
+  /* Progress bar */
+  .progress-container { margin-top: 8px; }
+  .progress-bar { height: 8px; background: #e2e8f0; border-radius: 99px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 99px; transition: width .3s; }
+  .progress-label { font-size: 11px; color: #64748b; margin-top: 4px; font-weight: 600; }
+
+  /* Tabla */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 8px; }
+  th { background: #f1f5f9; font-weight: 700; text-transform: uppercase; font-size: 10px; letter-spacing: 1px; color: #64748b; padding: 10px 14px; text-align: left; border-bottom: 2px solid #e2e8f0; }
+  td { padding: 9px 14px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+  tr:nth-child(even) td { background: #fafbfc; }
+
+  /* Chart placeholder */
+  .chart-placeholder { background: #f8fafc; border: 1.5px dashed #cbd5e1; border-radius: 12px; padding: 32px; text-align: center; margin-bottom: 8px; }
+  .chart-placeholder .icon { font-size: 40px; margin-bottom: 8px; opacity: .4; }
+  .chart-placeholder .label { font-size: 12px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
+  .chart-placeholder .note { font-size: 11px; color: #cbd5e1; margin-top: 4px; }
+
+  /* Simulated bars for preview */
+  .bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+  .bar-label { width: 110px; font-size: 11px; font-weight: 700; color: #475569; text-align: right; flex-shrink: 0; }
+  .bar-track { flex: 1; height: 22px; background: #f1f5f9; border-radius: 6px; overflow: hidden; position: relative; }
+  .bar-fill { height: 100%; border-radius: 6px; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; }
+  .bar-fill span { font-size: 10px; font-weight: 800; color: white; }
+
+  /* Pie simulated */
+  .pie-container { display: flex; align-items: center; gap: 24px; justify-content: center; padding: 16px 0; }
+  .pie-circle { width: 120px; height: 120px; border-radius: 50%; background: conic-gradient(#2563eb 0% 62%, #38bdf8 62% 100%); position: relative; }
+  .pie-circle::after { content: ''; position: absolute; inset: 30px; background: white; border-radius: 50%; }
+  .pie-legend { font-size: 12px; }
+  .pie-legend div { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .pie-legend .dot { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+  .pie-legend .val { font-weight: 800; }
+
+  /* Footer */
+  .report-footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 10px; color: #cbd5e1; }
+
+  /* Badge */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; }
+</style>
+</head>
+<body>
+
+<div class="tabs">
+  <button class="tab active" onclick="showTab('leads')">Leads (general)</button>
+  <button class="tab" onclick="showTab('leads-filtered')">Leads (filtro estado)</button>
+  <button class="tab" onclick="showTab('leads-carrera')">Leads (filtro carrera)</button>
+  <button class="tab" onclick="showTab('opps')">Oportunidades</button>
+  <button class="tab" onclick="showTab('rases')">RASES</button>
+</div>
+
+<!-- ==================== INFORME LEADS ==================== -->
+<div class="page active" id="leads">
+  <div class="report-header">
+    <div>
+      <h1>Informe de Leads</h1>
+      <div class="subtitle">CRM Asesoria ORT</div>
+    </div>
+    <div class="meta">
+      <div><strong>Fecha:</strong> 19 de Marzo, 2026</div>
+      <div><strong>Periodo:</strong> Marzo 2026</div>
+      <div><strong>Filtros aplicados:</strong> Todos</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Indicadores Clave</div>
+    <div class="kpi-row">
+      <div class="kpi">
+        <div class="kpi-value">147</div>
+        <div class="kpi-label">Total Leads</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-value green">89</div>
+        <div class="kpi-label">Contactados</div>
+        <div class="progress-container">
+          <div class="progress-bar"><div class="progress-fill" style="width:61%;background:#16a34a"></div></div>
+          <div class="progress-label">89 de 147 contactados (61%)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Distribucion por Resultado de Llamada</div>
+    <div class="bar-row"><div class="bar-label">Contactado</div><div class="bar-track"><div class="bar-fill" style="width:45%;background:#16a34a"><span>52</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">Interesado</div><div class="bar-track"><div class="bar-fill" style="width:32%;background:#22c55e"><span>37</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">No Contesta</div><div class="bar-track"><div class="bar-fill" style="width:22%;background:#3b82f6"><span>26</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">Sin Gestion</div><div class="bar-track"><div class="bar-fill" style="width:15%;background:#94a3b8"><span>18</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">No Interesado</div><div class="bar-track"><div class="bar-fill" style="width:10%;background:#ef4444"><span>14</span></div></div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Resumen por Resultado y Horario</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Resultado</th>
+          <th style="text-align:center">Llamada realizada de Mañana</th>
+          <th style="text-align:center">Llamada realizada de Tarde</th>
+          <th style="text-align:center">Llamada realizada de Noche</th>
+          <th style="text-align:right">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Contactado</td><td style="text-align:center">18</td><td style="text-align:center">24</td><td style="text-align:center">10</td><td style="text-align:right;font-weight:700">52</td></tr>
+        <tr><td>Interesado</td><td style="text-align:center">12</td><td style="text-align:center">17</td><td style="text-align:center">8</td><td style="text-align:right;font-weight:700">37</td></tr>
+        <tr><td>No Contesta</td><td style="text-align:center">9</td><td style="text-align:center">11</td><td style="text-align:center">6</td><td style="text-align:right;font-weight:700">26</td></tr>
+        <tr><td>Sin Gestion</td><td style="text-align:center">7</td><td style="text-align:center">8</td><td style="text-align:center">3</td><td style="text-align:right;font-weight:700">18</td></tr>
+        <tr><td>No Interesado</td><td style="text-align:center">5</td><td style="text-align:center">6</td><td style="text-align:center">3</td><td style="text-align:right;font-weight:700">14</td></tr>
+        <tr style="font-weight:800;border-top:2px solid #cbd5e1"><td>Total</td><td style="text-align:center">51</td><td style="text-align:center">66</td><td style="text-align:center">30</td><td style="text-align:right">147</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="report-footer">
+    <div>CRM Asesoria ORT - Informe generado automaticamente</div>
+    <div>Pagina 1 de 1</div>
+  </div>
+</div>
+
+<!-- ==================== LEADS CON FILTRO ACTIVO ==================== -->
+<div class="page" id="leads-filtered">
+  <div class="report-header">
+    <div>
+      <h1>Informe de Leads</h1>
+      <div class="subtitle">CRM Asesoria ORT</div>
+    </div>
+    <div class="meta">
+      <div><strong>Fecha:</strong> 19 de Marzo, 2026</div>
+      <div><strong>Periodo:</strong> Marzo 2026</div>
+      <div><strong>Filtro estado:</strong> <span style="color:#16a34a;font-weight:800">Contactado</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Indicadores Clave</div>
+    <div class="kpi-row">
+      <div class="kpi">
+        <div class="kpi-value">52</div>
+        <div class="kpi-label">Leads Contactados</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-value blue">18</div>
+        <div class="kpi-label">Mañana</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-value amber">24</div>
+        <div class="kpi-label">Tarde</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-value purple">10</div>
+        <div class="kpi-label">Noche</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Distribucion por Carrera — Contactado</div>
+    <div class="bar-row"><div class="bar-label">GF</div><div class="bar-track"><div class="bar-fill" style="width:38%;background:#2563eb"><span>12</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">LV</div><div class="bar-track"><div class="bar-fill" style="width:34%;background:#7c3aed"><span>11</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">WE</div><div class="bar-track"><div class="bar-fill" style="width:25%;background:#0891b2"><span>8</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">UI</div><div class="bar-track"><div class="bar-fill" style="width:22%;background:#d97706"><span>7</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">LD</div><div class="bar-track"><div class="bar-fill" style="width:19%;background:#059669"><span>6</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">WY</div><div class="bar-track"><div class="bar-fill" style="width:12%;background:#e11d48"><span>3</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">LT</div><div class="bar-track"><div class="bar-fill" style="width:8%;background:#6366f1"><span>2</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">YN</div><div class="bar-track"><div class="bar-fill" style="width:8%;background:#14b8a6"><span>2</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">LG</div><div class="bar-track"><div class="bar-fill" style="width:4%;background:#f97316"><span>1</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">VD</div><div class="bar-track"><div class="bar-fill" style="width:0%;background:#64748b"><span>0</span></div></div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Detalle de Leads — Contactado</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Carrera</th>
+          <th style="text-align:center">Horario Llamada</th>
+          <th style="text-align:center">Intentos</th>
+          <th>Comentario</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="font-weight:700">Maria Lopez</td>
+          <td><span class="badge" style="background:#ede9fe;color:#7c3aed">LV</span></td>
+          <td style="text-align:center"><span class="badge" style="background:#dbeafe;color:#2563eb">Mañana</span></td>
+          <td style="text-align:center">2</td>
+          <td style="font-size:11px;color:#64748b">Interesada en horario nocturno, vuelve a llamar</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">Juan Perez</td>
+          <td><span class="badge" style="background:#dbeafe;color:#2563eb">GF</span></td>
+          <td style="text-align:center"><span class="badge" style="background:#fef3c7;color:#d97706">Tarde</span></td>
+          <td style="text-align:center">1</td>
+          <td style="font-size:11px;color:#64748b">Quiere info de becas, enviar mail</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">Ana Rodriguez</td>
+          <td><span class="badge" style="background:#d1fae5;color:#059669">WE</span></td>
+          <td style="text-align:center"><span class="badge" style="background:#dbeafe;color:#2563eb">Mañana</span></td>
+          <td style="text-align:center">3</td>
+          <td style="font-size:11px;color:#64748b">Ya conoce ORT, consulta por cambio de carrera</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">Carlos Fernandez</td>
+          <td><span class="badge" style="background:#fef3c7;color:#d97706">UI</span></td>
+          <td style="text-align:center"><span class="badge" style="background:#fef3c7;color:#d97706">Tarde</span></td>
+          <td style="text-align:center">1</td>
+          <td style="font-size:11px;color:#64748b">Viene de otra universidad, pide convalidaciones</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">Lucia Martinez</td>
+          <td><span class="badge" style="background:#ede9fe;color:#7c3aed">LD</span></td>
+          <td style="text-align:center"><span class="badge" style="background:#ede9fe;color:#7c3aed">Noche</span></td>
+          <td style="text-align:center">2</td>
+          <td style="font-size:11px;color:#64748b">Confirmo interes, agendar RAS para la semana</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">Pedro Gomez</td>
+          <td><span class="badge" style="background:#dbeafe;color:#2563eb">GF</span></td>
+          <td style="text-align:center"><span class="badge" style="background:#fef3c7;color:#d97706">Tarde</span></td>
+          <td style="text-align:center">1</td>
+          <td style="font-size:11px;color:#64748b"></td>
+        </tr>
+        <tr>
+          <td colspan="5" style="text-align:center;color:#94a3b8;font-size:11px;padding:12px">... y 46 leads mas</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="report-footer">
+    <div>CRM Asesoria ORT - Informe generado automaticamente</div>
+    <div>Pagina 1 de 1</div>
+  </div>
+</div>
+
+<!-- ==================== LEADS FILTRO POR CARRERA ==================== -->
+<div class="page" id="leads-carrera">
+  <div class="report-header">
+    <div>
+      <h1>Informe de Leads</h1>
+      <div class="subtitle">CRM Asesoria ORT</div>
+    </div>
+    <div class="meta">
+      <div><strong>Fecha:</strong> 19 de Marzo, 2026</div>
+      <div><strong>Periodo:</strong> Marzo 2026</div>
+      <div><strong>Filtro carrera:</strong> <span style="color:#7c3aed;font-weight:800">LV</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Indicadores Clave</div>
+    <div class="kpi-row">
+      <div class="kpi">
+        <div class="kpi-value purple">34</div>
+        <div class="kpi-label">Leads en LV</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-value green">21</div>
+        <div class="kpi-label">Contactados</div>
+        <div class="progress-container">
+          <div class="progress-bar"><div class="progress-fill" style="width:62%;background:#16a34a"></div></div>
+          <div class="progress-label">21 de 34 contactados (62%)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Distribucion por Resultado — LV</div>
+    <div class="bar-row"><div class="bar-label">Contactado</div><div class="bar-track"><div class="bar-fill" style="width:50%;background:#16a34a"><span>12</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">Interesado</div><div class="bar-track"><div class="bar-fill" style="width:38%;background:#22c55e"><span>9</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">No Contesta</div><div class="bar-track"><div class="bar-fill" style="width:25%;background:#3b82f6"><span>6</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">Sin Gestion</div><div class="bar-track"><div class="bar-fill" style="width:16%;background:#94a3b8"><span>4</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">No Interesado</div><div class="bar-track"><div class="bar-fill" style="width:12%;background:#ef4444"><span>3</span></div></div></div>
+    <table style="margin-top:16px">
+      <thead>
+        <tr>
+          <th>Resultado</th>
+          <th style="text-align:center">Llamada realizada de Mañana</th>
+          <th style="text-align:center">Llamada realizada de Tarde</th>
+          <th style="text-align:center">Llamada realizada de Noche</th>
+          <th style="text-align:right">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Contactado</td><td style="text-align:center">4</td><td style="text-align:center">6</td><td style="text-align:center">2</td><td style="text-align:right;font-weight:700">12</td></tr>
+        <tr><td>Interesado</td><td style="text-align:center">3</td><td style="text-align:center">4</td><td style="text-align:center">2</td><td style="text-align:right;font-weight:700">9</td></tr>
+        <tr><td>No Contesta</td><td style="text-align:center">2</td><td style="text-align:center">3</td><td style="text-align:center">1</td><td style="text-align:right;font-weight:700">6</td></tr>
+        <tr><td>Sin Gestion</td><td style="text-align:center">2</td><td style="text-align:center">1</td><td style="text-align:center">1</td><td style="text-align:right;font-weight:700">4</td></tr>
+        <tr><td>No Interesado</td><td style="text-align:center">1</td><td style="text-align:center">1</td><td style="text-align:center">1</td><td style="text-align:right;font-weight:700">3</td></tr>
+        <tr style="font-weight:800;border-top:2px solid #cbd5e1"><td>Total</td><td style="text-align:center">12</td><td style="text-align:center">15</td><td style="text-align:center">7</td><td style="text-align:right">34</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Detalle de Leads — LV</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Resultado</th>
+          <th style="text-align:center">Horario Llamada</th>
+          <th style="text-align:center">Intentos</th>
+          <th>Comentario</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="font-weight:700">Maria Lopez</td>
+          <td><span class="badge" style="background:#dcfce7;color:#16a34a">Contactado</span></td>
+          <td style="text-align:center"><span class="badge" style="background:#dbeafe;color:#2563eb">Mañana</span></td>
+          <td style="text-align:center">2</td>
+          <td style="font-size:11px;color:#64748b">Interesada en horario nocturno, vuelve a llamar</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">Lucia Martinez</td>
+          <td><span class="badge" style="background:#dcfce7;color:#16a34a">Interesado</span></td>
+          <td style="text-align:center"><span class="badge" style="background:#ede9fe;color:#7c3aed">Noche</span></td>
+          <td style="text-align:center">1</td>
+          <td style="font-size:11px;color:#64748b">Confirmo interes, agendar RAS para la semana</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">Sofia Alvarez</td>
+          <td><span class="badge" style="background:#dbeafe;color:#3b82f6">No Contesta</span></td>
+          <td style="text-align:center"><span class="badge" style="background:#fef3c7;color:#d97706">Tarde</span></td>
+          <td style="text-align:center">4</td>
+          <td style="font-size:11px;color:#64748b">Dejo mensaje en buzon, reintentar lunes</td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">Tomas Ruiz</td>
+          <td><span class="badge" style="background:#f1f5f9;color:#94a3b8">Sin Gestion</span></td>
+          <td style="text-align:center"><span class="badge" style="background:#fef3c7;color:#d97706">Tarde</span></td>
+          <td style="text-align:center">0</td>
+          <td style="font-size:11px;color:#64748b"></td>
+        </tr>
+        <tr>
+          <td style="font-weight:700">Valentina Castro</td>
+          <td><span class="badge" style="background:#fef2f2;color:#ef4444">No Interesado</span></td>
+          <td style="text-align:center"><span class="badge" style="background:#dbeafe;color:#2563eb">Mañana</span></td>
+          <td style="text-align:center">1</td>
+          <td style="font-size:11px;color:#64748b">Decidio otra universidad</td>
+        </tr>
+        <tr>
+          <td colspan="5" style="text-align:center;color:#94a3b8;font-size:11px;padding:12px">... y 29 leads mas</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="report-footer">
+    <div>CRM Asesoria ORT - Informe generado automaticamente</div>
+    <div>Pagina 1 de 1</div>
+  </div>
+</div>
+
+<!-- ==================== INFORME OPORTUNIDADES ==================== -->
+<div class="page" id="opps">
+  <div class="report-header">
+    <div>
+      <h1>Informe de Oportunidades</h1>
+      <div class="subtitle">CRM Asesoria ORT</div>
+    </div>
+    <div class="meta">
+      <div><strong>Fecha:</strong> 19 de Marzo, 2026</div>
+      <div><strong>Proceso:</strong> Marzo 2026</div>
+      <div><strong>Filtros aplicados:</strong> Todos</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Indicadores Clave</div>
+    <div class="kpi-row">
+      <div class="kpi">
+        <div class="kpi-value">312</div>
+        <div class="kpi-label">Oportunidades</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-value purple">198</div>
+        <div class="kpi-label">Contactos</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-value green">45</div>
+        <div class="kpi-label">Inscriptos</div>
+        <div class="progress-container">
+          <div class="progress-bar"><div class="progress-fill" style="width:14%;background:#16a34a"></div></div>
+          <div class="progress-label">45 de 312 (14%)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Pipeline por Fase</div>
+    <div class="bar-row"><div class="bar-label">Interesado</div><div class="bar-track"><div class="bar-fill" style="width:55%;background:#3b82f6"><span>95</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">Evaluando</div><div class="bar-track"><div class="bar-fill" style="width:40%;background:#8b5cf6"><span>72</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">Contactado</div><div class="bar-track"><div class="bar-fill" style="width:32%;background:#0ea5e9"><span>58</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">Promesa de Insc.</div><div class="bar-track"><div class="bar-fill" style="width:28%;background:#f59e0b"><span>50</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">Inscripto</div><div class="bar-track"><div class="bar-fill" style="width:24%;background:#16a34a"><span>45</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">No interesado</div><div class="bar-track"><div class="bar-fill" style="width:14%;background:#ef4444"><span>25</span></div></div></div>
+
+  </div>
+
+  <div class="section">
+    <div class="section-title">Mix de Carreras</div>
+    <div class="bar-row"><div class="bar-label">LV</div><div class="bar-track"><div class="bar-fill" style="width:50%;background:#7c3aed"><span>68</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">GF</div><div class="bar-track"><div class="bar-fill" style="width:38%;background:#2563eb"><span>52</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">WE</div><div class="bar-track"><div class="bar-fill" style="width:30%;background:#0891b2"><span>41</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">LD</div><div class="bar-track"><div class="bar-fill" style="width:25%;background:#059669"><span>35</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">UI</div><div class="bar-track"><div class="bar-fill" style="width:22%;background:#d97706"><span>30</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">WY</div><div class="bar-track"><div class="bar-fill" style="width:18%;background:#e11d48"><span>28</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">LT</div><div class="bar-track"><div class="bar-fill" style="width:15%;background:#6366f1"><span>22</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">YN</div><div class="bar-track"><div class="bar-fill" style="width:12%;background:#14b8a6"><span>18</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">LG</div><div class="bar-track"><div class="bar-fill" style="width:8%;background:#f97316"><span>12</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">VD</div><div class="bar-track"><div class="bar-fill" style="width:4%;background:#64748b"><span>6</span></div></div></div>
+  </div>
+
+  <div class="report-footer">
+    <div>CRM Asesoria ORT - Informe generado automaticamente</div>
+    <div>Pagina 1 de 1</div>
+  </div>
+</div>
+
+<!-- ==================== INFORME RASES ==================== -->
+<div class="page" id="rases">
+  <div class="report-header">
+    <div>
+      <h1>Informe de RASES</h1>
+      <div class="subtitle">CRM Asesoria ORT</div>
+    </div>
+    <div class="meta">
+      <div><strong>Fecha:</strong> 19 de Marzo, 2026</div>
+      <div><strong>Periodo:</strong> Marzo 2026</div>
+      <div><strong>Filtros aplicados:</strong> Todos</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Indicadores Clave</div>
+    <div class="kpi-row">
+      <div class="kpi">
+        <div class="kpi-value">84</div>
+        <div class="kpi-label">Total RASES</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-value blue">52</div>
+        <div class="kpi-label">Presencial</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-value" style="color:#38bdf8">32</div>
+        <div class="kpi-label">En Linea</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Resultado RAS</div>
+    <div class="bar-row"><div class="bar-label">Realizada</div><div class="bar-track"><div class="bar-fill" style="width:52%;background:#16a34a"><span>44</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">Pendiente</div><div class="bar-track"><div class="bar-fill" style="width:28%;background:#3b82f6"><span>24</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">Frustrada</div><div class="bar-track"><div class="bar-fill" style="width:12%;background:#ef4444"><span>10</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">Cancelada</div><div class="bar-track"><div class="bar-fill" style="width:7%;background:#94a3b8"><span>6</span></div></div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">RAS por Agente</div>
+    <div class="bar-row"><div class="bar-label">Natalia B.</div><div class="bar-track"><div class="bar-fill" style="width:65%;background:#7c3aed"><span>14</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">Mariana M.</div><div class="bar-track"><div class="bar-fill" style="width:55%;background:#2563eb"><span>12</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">Bruno A.</div><div class="bar-track"><div class="bar-fill" style="width:45%;background:#0891b2"><span>10</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">Diego M.</div><div class="bar-track"><div class="bar-fill" style="width:40%;background:#059669"><span>9</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">Alejandro E.</div><div class="bar-track"><div class="bar-fill" style="width:35%;background:#d97706"><span>8</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">Lucia N.</div><div class="bar-track"><div class="bar-fill" style="width:32%;background:#e11d48"><span>7</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">Fabian B.</div><div class="bar-track"><div class="bar-fill" style="width:28%;background:#6366f1"><span>6</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">Maria P.</div><div class="bar-track"><div class="bar-fill" style="width:28%;background:#14b8a6"><span>6</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">Fernanda N.</div><div class="bar-track"><div class="bar-fill" style="width:23%;background:#f97316"><span>5</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">Pablo P.</div><div class="bar-track"><div class="bar-fill" style="width:18%;background:#64748b"><span>4</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">Daniel D.</div><div class="bar-track"><div class="bar-fill" style="width:14%;background:#94a3b8"><span>3</span></div></div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">RAS por Carrera</div>
+    <div class="bar-row"><div class="bar-label">LV</div><div class="bar-track"><div class="bar-fill" style="width:48%;background:#7c3aed"><span>18</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">GF</div><div class="bar-track"><div class="bar-fill" style="width:40%;background:#2563eb"><span>15</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">WE</div><div class="bar-track"><div class="bar-fill" style="width:32%;background:#0891b2"><span>12</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">LD</div><div class="bar-track"><div class="bar-fill" style="width:26%;background:#059669"><span>10</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">UI</div><div class="bar-track"><div class="bar-fill" style="width:22%;background:#d97706"><span>9</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">WY</div><div class="bar-track"><div class="bar-fill" style="width:18%;background:#e11d48"><span>7</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">LT</div><div class="bar-track"><div class="bar-fill" style="width:14%;background:#6366f1"><span>5</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">YN</div><div class="bar-track"><div class="bar-fill" style="width:10%;background:#14b8a6"><span>4</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">LG</div><div class="bar-track"><div class="bar-fill" style="width:7%;background:#f97316"><span>3</span></div></div></div>
+    <div class="bar-row"><div class="bar-label">VD</div><div class="bar-track"><div class="bar-fill" style="width:3%;background:#64748b"><span>1</span></div></div></div>
+  </div>
+
+  <div class="report-footer">
+    <div>CRM Asesoria ORT - Informe generado automaticamente</div>
+    <div>Pagina 1 de 1</div>
+  </div>
+</div>
+
+<script>
+  function showTab(id) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    event.target.classList.add('active');
+  }
+</script>
+</body>
+</html>

@@ -11,7 +11,7 @@ interface RasActions {
     'nombre', 'cedula', 'mail', 'telefono', 'sape', 'carrera_interes', 'otros_intereses',
     'liceo', 'fecha_lead', 'ras_agendada', 'multiple_interes',
     'liceo_tipo', 'ras_hecha_por', 'proceso_inicio', 'fase_oportunidad',
-    'comentario_extra'
+    'comentario_extra', 'motivo_desinteres'
   ];
 
   const pickValidCols = (obj: Record<string, any>) => {

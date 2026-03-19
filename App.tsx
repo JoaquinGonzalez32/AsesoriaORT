@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
-import { ROUTES, IconDashboard, IconUsers, IconTarget, IconCalendar, IconSettings, IconListaTrabajo } from './constants';
+import { ROUTES, IconDashboard, IconUsers, IconTarget, IconCalendar, IconSettings, IconListaTrabajo, IconFileBarChart } from './constants';
 import Dashboard from './components/Dashboard';
 import LeadsManager from './components/LeadsManager';
 import OpportunitiesManager from './components/OpportunitiesManager';
@@ -9,6 +9,7 @@ import OportunidadDetalle from './components/OportunidadDetalle';
 import GestionUsuarios from './components/GestionUsuarios';
 import ListasTrabajo from './components/ListasTrabajo';
 import ListaDetalle from './components/ListaDetalle';
+import InformesPage from './components/informes/InformesPage';
 import RutaProtegida from './components/RutaProtegida';
 import LoginPage from './features/auth/LoginPage';
 import RecuperarPassword from './features/auth/RecuperarPassword';
@@ -104,6 +105,7 @@ const AppLayout: React.FC = () => {
     { to: ROUTES.OPPORTUNITIES, label: 'Oportunidades', icon: IconTarget },
     { to: ROUTES.RASES, label: 'Agenda RASES', icon: IconCalendar },
     { to: ROUTES.LISTAS_TRABAJO, label: 'Listas', icon: IconListaTrabajo },
+    { to: ROUTES.REPORTS, label: 'Informes', icon: IconFileBarChart },
   ];
 
   if (tienePermiso(profile?.rol, 'gestionarUsuarios')) {
@@ -131,6 +133,7 @@ const AppLayout: React.FC = () => {
         <Route path="/opportunities/:id" element={<OportunidadDetalle opportunities={opportunities} rases={rases} onUpdateOpp={updateOpp} onDeleteOpp={deleteOpp} onAddOpp={handleAddOpp} onAddRas={handleAddRas} onUpdateRas={updateRas} onDeleteRas={deleteRas} />} />
         <Route path={ROUTES.RASES} element={<RasesManager rases={rases} opportunities={opportunities} onAdd={handleAddRas} onUpdate={updateRas} onDelete={deleteRas} onUpdateOpp={updateOpp} />} />
         <Route path={ROUTES.USUARIOS} element={<GestionUsuarios />} />
+        <Route path={ROUTES.REPORTS} element={<InformesPage leads={leads} opportunities={opportunities} rases={rases} />} />
         <Route path={ROUTES.LISTAS_TRABAJO} element={<ListasTrabajo />} />
         <Route path="/listas-de-trabajo/:id" element={<ListaDetalle />} />
         <Route path="*" element={<Dashboard leads={leads} opportunities={opportunities} rases={rases} />} />
