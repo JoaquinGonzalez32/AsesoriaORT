@@ -127,7 +127,7 @@ const AppLayout: React.FC = () => {
     if (error) return <div className="text-center p-20"><p className="text-red-500 font-bold">{error}</p></div>;
     return (
       <Routes>
-        <Route path={ROUTES.DASHBOARD} element={<Dashboard leads={leads} opportunities={opportunities} rases={rases} />} />
+        <Route path={ROUTES.DASHBOARD} element={<Dashboard leads={leads} opportunities={opportunities} rases={rases} userId={user?.id} />} />
         <Route path={ROUTES.LEADS} element={<LeadsManager leads={leads} onAdd={handleAddLead} onUpdate={updateLead} onDelete={deleteLead} onConvert={convertToOpportunity} onRefresh={fetchLeads} />} />
         <Route path={ROUTES.OPPORTUNITIES} element={<OpportunitiesManager opportunities={opportunities} onAdd={handleAddOpp} onUpdate={updateOpp} onDelete={deleteOpp} onRefresh={fetchOpportunities} />} />
         <Route path="/opportunities/:id" element={<OportunidadDetalle opportunities={opportunities} rases={rases} onUpdateOpp={updateOpp} onDeleteOpp={deleteOpp} onAddOpp={handleAddOpp} onAddRas={handleAddRas} onUpdateRas={updateRas} onDeleteRas={deleteRas} />} />
@@ -136,7 +136,7 @@ const AppLayout: React.FC = () => {
         <Route path={ROUTES.REPORTS} element={<InformesPage leads={leads} opportunities={opportunities} rases={rases} />} />
         <Route path={ROUTES.LISTAS_TRABAJO} element={<ListasTrabajo />} />
         <Route path="/listas-de-trabajo/:id" element={<ListaDetalle />} />
-        <Route path="*" element={<Dashboard leads={leads} opportunities={opportunities} rases={rases} />} />
+        <Route path="*" element={<Dashboard leads={leads} opportunities={opportunities} rases={rases} userId={user?.id} />} />
       </Routes>
     );
   };
