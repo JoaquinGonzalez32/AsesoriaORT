@@ -145,22 +145,38 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
         return obj;
       });
 
-      let importedCount = 0;
+      let linkedCount = 0;
+      let unlinkedCount = 0;
       for (const item of data) {
         if (!item.titulo || !item.nombre_interesado) continue;
+        // Buscar oportunidad vinculable por nombre (case-insensitive)
+        const nombre = item.nombre_interesado.trim().toLowerCase();
+        const matchOpp = opportunities.find(o => !o.deleted_at && o.nombre?.trim().toLowerCase() === nombre);
         await onAdd({
-          opp_id: null, 
+          opp_id: matchOpp?.opp_id || null,
           titulo: item.titulo,
           nombre_interesado: item.nombre_interesado,
           agente_nombre: item.agente_nombre || 'Sin asignar',
           fecha_hora: item.fecha_hora || new Date().toISOString(),
           modalidad: (item.modalidad as ModalidadRAS) || ModalidadRAS.Presencial,
-          carrera: item.carrera || '',
-          estado_oportunidad: item.estado_oportunidad || 'Pendiente'
+          carrera: item.carrera || matchOpp?.carrera_interes || '',
+          estado_oportunidad: item.estado_oportunidad || matchOpp?.proceso_inicio || ''
         });
-        importedCount++;
+        if (matchOpp) {
+          // Sync ras_agendada en la opp
+          if (onUpdateOpp && !matchOpp.ras_agendada) {
+            await onUpdateOpp({ ...matchOpp, ras_agendada: true, updated_at: new Date().toISOString() });
+          }
+          linkedCount++;
+        } else {
+          unlinkedCount++;
+        }
       }
-      toast('success', `Se importaron ${importedCount} reuniones correctamente.`);
+      const total = linkedCount + unlinkedCount;
+      let msg = `Se importaron ${total} reuniones.`;
+      if (linkedCount > 0) msg += ` ${linkedCount} vinculadas a oportunidades.`;
+      if (unlinkedCount > 0) msg += ` ${unlinkedCount} sin oportunidad asociada.`;
+      toast(unlinkedCount > 0 ? 'warning' : 'success', msg);
       if (fileInputRef.current) fileInputRef.current.value = '';
     };
     reader.readAsText(file);
@@ -220,9 +236,16 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
     }
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (rasToDelete) {
       onDelete(rasToDelete.ras_id);
+      // Sync: marcar ras_agendada=false en la oportunidad vinculada
+      if (rasToDelete.opp_id && onUpdateOpp) {
+        const linkedOpp = opportunities.find(o => o.opp_id === rasToDelete.opp_id);
+        if (linkedOpp) {
+          await onUpdateOpp({ ...linkedOpp, ras_agendada: false, updated_at: new Date().toISOString() });
+        }
+      }
       setRasToDelete(null);
     }
   };
@@ -584,6 +607,9 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
                   {oppFaseMap[ras.opp_id] && (
                     <span className={`px-1.5 py-0.5 rounded text-[9px] font-black ${FASE_STYLE[oppFaseMap[ras.opp_id]] || 'bg-gray-100 text-gray-600'}`}>{oppFaseMap[ras.opp_id]}</span>
                   )}
+                  {!ras.opp_id && (
+                    <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">Sin oportunidad</span>
+                  )}
                 </div>
                 {ras.opp_id && (
                 <div className="pt-4 border-t border-gray-50 flex items-center justify-end">
@@ -634,6 +660,8 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
                   <td className="px-5 py-3">
                     {oppFaseMap[ras.opp_id] ? (
                       <span className={`px-2 py-0.5 rounded text-[10px] font-black ${FASE_STYLE[oppFaseMap[ras.opp_id]] || 'bg-gray-100 text-gray-600'}`}>{oppFaseMap[ras.opp_id]}</span>
+                    ) : !ras.opp_id ? (
+                      <span className="text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded">Sin oportunidad</span>
                     ) : '—'}
                   </td>
                   <td className="px-5 py-3 text-right">

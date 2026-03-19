@@ -69,7 +69,6 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
   const [addingForContact, setAddingForContact] = useState<string | null>(null);
   const [inlineNewCarrera, setInlineNewCarrera] = useState('');
   const [inlineNewProceso, setInlineNewProceso] = useState(getDefaultProceso);
-  const [inlineNewRas, setInlineNewRas] = useState(false);
   const [inlineAdding, setInlineAdding] = useState(false);
 
   // Confirm modal state (replaces native confirm/alert)
@@ -321,7 +320,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
       proceso_inicio: formData.get('proceso_inicio'),
       fase_oportunidad: formData.get('fase_oportunidad'),
       liceo_tipo: formData.get('liceo_tipo'),
-      ras_agendada: formData.get('ras_agendada') === 'on',
+      ras_agendada: editingOpp?.ras_agendada ?? false,
       multiple_interes: false,
       otros_intereses: [],
       comentario_extra: formData.get('comentario_extra'),
@@ -1107,13 +1106,9 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
                           {PROCESO_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
                         </select>
                       </div>
-                      <label className="flex items-center gap-2 cursor-pointer pb-2">
-                        <input type="checkbox" checked={inlineNewRas} onChange={e => setInlineNewRas(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
-                        <span className="text-xs font-bold text-gray-600">Agendar RAS</span>
-                      </label>
                       <div className="flex items-center gap-2 pb-0.5">
                         <button
-                          onClick={() => { setAddingForContact(null); setInlineNewCarrera(''); setInlineNewRas(false); }}
+                          onClick={() => { setAddingForContact(null); setInlineNewCarrera(''); }}
                           className="px-3 py-2 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-100 transition-colors"
                         >
                           Cancelar
@@ -1133,7 +1128,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
                                 carrera_interes: inlineNewCarrera,
                                 liceo: ref.liceo || '',
                                 fecha_lead: new Date().toISOString().split('T')[0],
-                                ras_agendada: inlineNewRas,
+                                ras_agendada: false,
                                 multiple_interes: false,
                                 liceo_tipo: ref.liceo_tipo,
                                 proceso_inicio: inlineNewProceso,
@@ -1142,7 +1137,6 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
                               });
                               setAddingForContact(null);
                               setInlineNewCarrera('');
-                              setInlineNewRas(false);
                               if (onRefresh) onRefresh();
                             } catch (err) {
                               console.error(err);
@@ -1159,7 +1153,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
                   ) : (
                     <div className="px-5 py-2.5 border-t border-gray-100">
                       <button
-                        onClick={() => { setAddingForContact(group.key); setInlineNewCarrera(''); setInlineNewRas(false); }}
+                        onClick={() => { setAddingForContact(group.key); setInlineNewCarrera(''); }}
                         className="text-purple-600 hover:text-purple-800 text-xs font-bold flex items-center gap-1 transition-colors"
                       >
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -1255,10 +1249,10 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
                         Hitos de Reunión (RAS)
                       </h4>
                       <div className="flex flex-wrap gap-8">
-                        <label className="flex items-center gap-3 cursor-pointer group">
-                          <input type="checkbox" name="ras_agendada" defaultChecked={editingOpp?.ras_agendada} className="w-5 h-5 rounded-lg border-gray-300 text-blue-600 focus:ring-blue-500" />
-                          <span className="text-sm font-bold text-gray-700 group-hover:text-blue-600 transition-colors uppercase">RAS Agendada</span>
-                        </label>
+                        <span className={`text-sm font-bold uppercase ${editingOpp?.ras_agendada ? 'text-blue-600' : 'text-gray-400'}`}>
+                          RAS Agendada: {editingOpp?.ras_agendada ? 'SÍ' : 'NO'}
+                        </span>
+                        <span className="text-xs text-gray-400">(se gestiona desde RASES)</span>
                       </div>
                     </div>
                     <div>

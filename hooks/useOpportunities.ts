@@ -116,11 +116,18 @@ export function useOpportunities(rasActions: RasActions) {
   };
 
   const deleteOpp = async (id: string) => {
+    const now = new Date().toISOString();
     const { error } = await supabase
       .from('oportunidades')
-      .update({ deleted_at: new Date().toISOString() })
+      .update({ deleted_at: now })
       .eq('opp_id', id);
     if (error) throw error;
+    // Soft-delete RAS vinculadas para mantener consistencia
+    await supabase
+      .from('rases')
+      .update({ deleted_at: now })
+      .eq('opp_id', id)
+      .is('deleted_at', null);
     setOpportunities(prev => prev.filter(o => o.opp_id !== id));
   };
 

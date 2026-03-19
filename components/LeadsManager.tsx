@@ -28,6 +28,13 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
   const [yearFilter, setYearFilter] = useState<string>(String(new Date().getFullYear()));
   const [showModal, setShowModal] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
+
+  const getHorarioActual = (): HorarioLlamada => {
+    const hora = new Date().getHours();
+    if (hora >= 8 && hora < 13) return HorarioLlamada.Manana;
+    if (hora >= 13 && hora < 19) return HorarioLlamada.Tarde;
+    return HorarioLlamada.Noche;
+  };
   const [leadToDelete, setLeadToDelete] = useState<Lead | null>(null);
   const [showConvertModal, setShowConvertModal] = useState<Lead | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -330,7 +337,7 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
           nombre: formData.get('nombre') as string,
           carrera_interes: formData.get('carrera_interes') as string,
           resultado_llamada: formData.get('resultado_llamada') as ResultadoLlamada,
-          horario_llamada: (formData.get('horario_llamada') as HorarioLlamada) || null,
+          horario_llamada: editingLead.horario_llamada,
           intentos_llamado: parseInt(formData.get('intentos_llamado') as string) || 1,
           comentario: formData.get('comentario') as string,
           updated_at: new Date().toISOString(),
@@ -342,7 +349,7 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
           carrera_interes: formData.get('carrera_interes') as string,
           fecha_lead: new Date().toISOString().split('T')[0],
           resultado_llamada: formData.get('resultado_llamada') as ResultadoLlamada,
-          horario_llamada: (formData.get('horario_llamada') as HorarioLlamada) || null,
+          horario_llamada: getHorarioActual(),
           intentos_llamado: 1,
           comentario: formData.get('comentario') as string,
           owner: null,
@@ -728,13 +735,6 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
                       <div>
                         <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-1">Intentos de Llamado</label>
                         <input name="intentos_llamado" type="number" min="0" defaultValue={editingLead?.intentos_llamado ?? 1} className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none" />
-                      </div>
-                      <div>
-                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-1">Horario Llamada</label>
-                        <select name="horario_llamada" defaultValue={editingLead?.horario_llamada || ''} className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm font-bold bg-white focus:ring-2 focus:ring-blue-500 outline-none">
-                          <option value="">Sin especificar</option>
-                          {Object.values(HorarioLlamada).map(h => <option key={h} value={h}>{h}</option>)}
-                        </select>
                       </div>
                       <div className="md:col-span-2">
                         <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-1">Comentario</label>
