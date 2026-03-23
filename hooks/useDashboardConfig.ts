@@ -8,8 +8,8 @@ export interface DashboardBlock {
 }
 
 const DEFAULT_BLOCKS: DashboardBlock[] = [
-  { id: 'kpi-captacion', label: 'KPIs Captacion', description: 'Total leads, 1er contacto, contactados e interesados.', enabled: true },
-  { id: 'kpi-cierre', label: 'KPIs Cierre', description: 'RAS agendadas y RAS realizadas.', enabled: true },
+  { id: 'kpi-captacion', label: 'Leads, 1er contacto, contactados e interesados', description: 'Total leads, 1er contacto, contactados e interesados.', enabled: true },
+  { id: 'kpi-cierre', label: 'RAS agendadas y realizadas', description: 'RAS agendadas y RAS realizadas.', enabled: true },
   { id: 'chart-funnel', label: 'Datos Leads', description: 'Grafica de barras con el embudo: 1er Contacto, Contactados, Interesados.', enabled: true },
   { id: 'chart-top-carreras', label: 'Top Carreras', description: 'Ranking de carreras con mas leads por interes.', enabled: true },
   { id: 'section-leads', label: 'Seccion Leads', description: 'Filtros y grafica de distribucion por resultado de llamada.', enabled: true },
