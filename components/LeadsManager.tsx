@@ -5,7 +5,11 @@ import { exportChartsAsImage, exportChartsAsCSV, ChartData } from '../lib/export
 import { supabase } from '../lib/supabase';
 import { CARRERAS_OPTIONS, MESES, RESULTADO_HEX } from '../lib/shared-constants';
 import Pagination from './ui/Pagination';
+import EmptyState from './ui/EmptyState';
+import DateRangePicker from './ui/DateRangePicker';
+import FilterChips, { FilterChip } from './ui/FilterChips';
 import { useToast } from './ui/Toast';
+import { traducirErrorSupabase } from '../lib/errorMessages';
 import InfoTooltip from './InfoTooltip';
 
 interface LeadsManagerProps {
@@ -49,7 +53,6 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
-  const [showDatePicker, setShowDatePicker] = useState(false);
 
   useEffect(() => {
     const hasModal = showModal || !!leadToDelete || !!showConvertModal;
@@ -343,6 +346,7 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
           updated_at: new Date().toISOString(),
         };
         await onUpdate(updated);
+        toast('success', 'Lead actualizado');
       } else {
         const newLeadData: Omit<Lead, 'lead_id' | 'created_at' | 'updated_at'> = {
           nombre: formData.get('nombre') as string,
@@ -355,20 +359,28 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
           owner: null,
         };
         await onAdd(newLeadData);
+        toast('success', 'Lead creado');
       }
       closeModal();
     } catch (err: any) {
       console.error('Error al guardar lead:', err);
-      toast('error', 'Error al guardar: ' + (err?.message || 'Error desconocido'));
+      const t = traducirErrorSupabase(err);
+      toast('error', t.friendly, undefined, 8000, { context: editingLead ? 'Actualizar lead' : 'Crear lead', technical: t.technical });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const confirmDelete = () => {
-    if (leadToDelete) {
-      onDelete(leadToDelete.lead_id);
+  const confirmDelete = async () => {
+    if (!leadToDelete) return;
+    try {
+      await onDelete(leadToDelete.lead_id);
       setLeadToDelete(null);
+      toast('success', 'Lead eliminado');
+    } catch (err: any) {
+      console.error('Error eliminando lead:', err);
+      const t = traducirErrorSupabase(err);
+      toast('error', t.friendly, undefined, 8000, { context: 'Eliminar lead', technical: t.technical });
     }
   };
 
@@ -533,39 +545,11 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
               {CARRERAS_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setShowDatePicker(p => !p)}
-              className={`w-full sm:w-auto border rounded-xl px-4 py-2.5 text-sm font-bold flex items-center gap-2 shadow-sm transition-all ${(desdeFilter || hastaFilter) ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-500'}`}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-              {desdeFilter || hastaFilter
-                ? `${desdeFilter ? new Date(desdeFilter + 'T00:00:00').toLocaleDateString('es-UY', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '…'} → ${hastaFilter ? new Date(hastaFilter + 'T00:00:00').toLocaleDateString('es-UY', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '…'}`
-                : 'Rango de fechas'}
-              <svg className={`w-3 h-3 text-gray-400 transition-transform ${showDatePicker ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
-            </button>
-            {showDatePicker && (
-              <div className="absolute z-50 mt-1 right-0 bg-white border border-gray-200 rounded-2xl shadow-xl p-4 min-w-[300px]">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-black uppercase text-gray-400 mb-1.5 block">Desde</label>
-                    <input type="date" value={desdeFilter} onChange={(e) => setDesdeFilter(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm w-full focus:ring-2 focus:ring-blue-500 outline-none" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-black uppercase text-gray-400 mb-1.5 block">Hasta</label>
-                    <input type="date" value={hastaFilter} onChange={(e) => setHastaFilter(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm w-full focus:ring-2 focus:ring-blue-500 outline-none" />
-                  </div>
-                </div>
-                <div className="flex gap-2 mt-3">
-                  {(desdeFilter || hastaFilter) && (
-                    <button type="button" onClick={() => { setDesdeFilter(''); setHastaFilter(''); }} className="flex-1 text-xs font-black uppercase text-red-500 hover:bg-red-50 py-2 rounded-xl border border-red-100 transition-colors">Limpiar</button>
-                  )}
-                  <button type="button" onClick={() => setShowDatePicker(false)} className="flex-1 text-xs font-black uppercase text-white bg-blue-600 hover:bg-blue-700 py-2 rounded-xl transition-colors">Listo</button>
-                </div>
-              </div>
-            )}
-          </div>
+          <DateRangePicker
+            desde={desdeFilter}
+            hasta={hastaFilter}
+            onChange={(d, h) => { setDesdeFilter(d); setHastaFilter(h); }}
+          />
           {(filter || statusFilter || monthFilter || yearFilter || carreraFilter || desdeFilter || hastaFilter) && (
             <button onClick={() => { setFilter(''); setStatusFilter(''); setMonthFilter(''); setYearFilter(''); setCarreraFilter(''); setDesdeFilter(''); setHastaFilter(''); setPage(1); }} className="text-gray-400 hover:text-red-500 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors active:scale-95 whitespace-nowrap">
               Reiniciar filtros
@@ -573,6 +557,37 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
           )}
         </div>
       </div>
+
+      {/* Filter chips activos */}
+      {(() => {
+        const chips: FilterChip[] = [];
+        if (filter) chips.push({ key: 'search', label: 'Buscar', value: filter, onRemove: () => setFilter('') });
+        if (statusFilter) chips.push({ key: 'status', label: 'Estado', value: statusFilter, onRemove: () => setStatusFilter('') });
+        if (carreraFilter) chips.push({ key: 'carrera', label: 'Carrera', value: carreraFilter, onRemove: () => setCarreraFilter('') });
+        if (monthFilter) {
+          const mesObj = MESES[parseInt(monthFilter, 10) - 1];
+          const mesNombre = mesObj ? mesObj.name : monthFilter;
+          chips.push({ key: 'month', label: 'Mes', value: mesNombre, onRemove: () => setMonthFilter('') });
+        }
+        if (desdeFilter || hastaFilter) {
+          const fmt = (d: string) => d ? new Date(d + 'T00:00:00').toLocaleDateString('es-UY', { day: '2-digit', month: '2-digit' }) : '…';
+          chips.push({
+            key: 'daterange',
+            label: 'Fechas',
+            value: `${fmt(desdeFilter)} → ${fmt(hastaFilter)}`,
+            onRemove: () => { setDesdeFilter(''); setHastaFilter(''); },
+          });
+        }
+        return chips.length > 0 ? (
+          <FilterChips
+            chips={chips}
+            onClearAll={() => {
+              setFilter(''); setStatusFilter(''); setMonthFilter('');
+              setCarreraFilter(''); setDesdeFilter(''); setHastaFilter('');
+            }}
+          />
+        ) : null;
+      })()}
 
       {importando && (
         <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-xl text-sm font-medium">
@@ -666,8 +681,32 @@ const LeadsManager: React.FC<LeadsManagerProps> = ({ leads, onAdd, onUpdate, onD
               ))
             ) : (
               <tr>
-                <td colSpan={7} className="p-12 text-center text-gray-400 font-medium italic">
-                  No se encontraron leads con estos criterios.
+                <td colSpan={7} className="p-0">
+                  {activeLeads.length === 0 ? (
+                    <EmptyState
+                      variant="leads"
+                      title="Aún no hay leads"
+                      description="Importá tu primer batch desde un CSV de Zoho o creá un lead manualmente para empezar a gestionar prospectos."
+                      action={{
+                        label: 'Nuevo Lead',
+                        onClick: openCreateModal,
+                        icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+                      }}
+                    />
+                  ) : (
+                    <EmptyState
+                      variant="search"
+                      title="Sin resultados"
+                      description="Ningún lead coincide con los filtros actuales. Probá ajustarlos o limpiá todos los filtros."
+                      action={{
+                        label: 'Limpiar filtros',
+                        onClick: () => {
+                          setFilter(''); setStatusFilter(''); setMonthFilter('');
+                          setCarreraFilter(''); setDesdeFilter(''); setHastaFilter(''); setPage(1);
+                        },
+                      }}
+                    />
+                  )}
                 </td>
               </tr>
             )}

@@ -458,7 +458,7 @@ const ListaDetalle: React.FC = () => {
                     <td className="p-4 text-right">
                       {item.opp_id ? (
                         <button
-                          onClick={() => navigate(`/opportunities/${item.opp_id}`)}
+                          onClick={() => navigate(`/opportunities/${item.opp_id}?fromListaId=${lista.id}&fromListaNombre=${encodeURIComponent(lista.nombre)}`)}
                           className="text-blue-600 hover:text-blue-800 text-sm font-bold"
                         >
                           Ver

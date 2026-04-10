@@ -9,6 +9,8 @@ import Modal from './ui/Modal';
 import ConfirmDialog from './ui/ConfirmDialog';
 import Pagination from './ui/Pagination';
 import { useToast } from './ui/Toast';
+import { traducirErrorSupabase } from '../lib/errorMessages';
+import { supabase } from '../lib/supabase';
 
 interface RasesManagerProps {
   rases: RAS[];
@@ -39,6 +41,7 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
   const [modalidadFilter, setModalidadFilter] = useState('');
   const [carreraFilter, setCarreraFilter] = useState('');
   const [estadoFilter, setEstadoFilter] = useState('');
+  const [faseFilter, setFaseFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [monthFilter, setMonthFilter] = useState(String(new Date().getMonth() + 1).padStart(2, '0'));
@@ -61,14 +64,15 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
     const agentes = [...new Set(valid.map(r => r.agente_nombre))].sort();
     const carreras = [...new Set(valid.map(r => r.carrera).filter(Boolean))].sort();
     const estados = [...new Set(valid.map(r => r.estado_oportunidad).filter(Boolean))].sort();
-    return { agentes, carreras, estados };
-  }, [rases]);
+    const fases = [...new Set(valid.map(r => r.opp_id ? oppFaseMap[r.opp_id] : undefined).filter(Boolean))] as string[];
+    return { agentes, carreras, estados, fases };
+  }, [rases, oppFaseMap]);
 
-  const hasFilters = filter || tituloFilter || agenteFilter || modalidadFilter || carreraFilter || estadoFilter || dateFrom || dateTo || monthFilter;
+  const hasFilters = filter || tituloFilter || agenteFilter || modalidadFilter || carreraFilter || estadoFilter || faseFilter || dateFrom || dateTo || monthFilter;
 
   const resetAllFilters = () => {
     setFilter(''); setTituloFilter(''); setAgenteFilter('');
-    setModalidadFilter(''); setCarreraFilter(''); setEstadoFilter('');
+    setModalidadFilter(''); setCarreraFilter(''); setEstadoFilter(''); setFaseFilter('');
     setDateFrom(''); setDateTo(''); setMonthFilter('');
     setPage(1);
   };
@@ -83,14 +87,15 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
       const matchesModalidad = !modalidadFilter || r.modalidad === modalidadFilter;
       const matchesCarrera = !carreraFilter || r.carrera === carreraFilter;
       const matchesEstado = !estadoFilter || r.estado_oportunidad === estadoFilter;
+      const matchesFase = !faseFilter || (r.opp_id && oppFaseMap[r.opp_id] === faseFilter);
       const fechaStr = (r.fecha_hora || '').split('T')[0];
       const matchesDateFrom = !dateFrom || fechaStr >= dateFrom;
       const matchesDateTo = !dateTo || fechaStr <= dateTo;
       const rasMonth = fechaStr.split('-')[1];
       const matchesMonth = !monthFilter || rasMonth === monthFilter;
-      return matchesNombre && matchesTitulo && matchesAgente && matchesModalidad && matchesCarrera && matchesEstado && matchesDateFrom && matchesDateTo && matchesMonth;
+      return matchesNombre && matchesTitulo && matchesAgente && matchesModalidad && matchesCarrera && matchesEstado && matchesFase && matchesDateFrom && matchesDateTo && matchesMonth;
     });
-  }, [rases, filter, tituloFilter, agenteFilter, modalidadFilter, carreraFilter, estadoFilter, dateFrom, dateTo, monthFilter]);
+  }, [rases, filter, tituloFilter, agenteFilter, modalidadFilter, carreraFilter, estadoFilter, faseFilter, oppFaseMap, dateFrom, dateTo, monthFilter]);
 
   const PAGE_SIZE = 30;
   const [page, setPage] = useState(1);
@@ -133,9 +138,13 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
 
     const reader = new FileReader();
     reader.onload = async (event) => {
+      try {
       const text = event.target?.result as string;
       const lines = text.split(/\r?\n/).filter(line => line.trim());
-      if (lines.length <= 1) return;
+      if (lines.length <= 1) {
+        toast('warning', 'El archivo CSV está vacío o solo tiene encabezados');
+        return;
+      }
 
       const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
       const data = lines.slice(1).map(line => {
@@ -145,25 +154,66 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
         return obj;
       });
 
+      // Deduplicación: obtener RASES existentes
+      // Normalizar fecha: truncar a minuto para comparación robusta
+      const normFecha = (f: string) => {
+        if (!f) return '';
+        // Tomar solo YYYY-MM-DDTHH:MM (16 chars), ignorando segundos, ms y timezone
+        return f.replace(/\s/g, 'T').slice(0, 16).toLowerCase();
+      };
+      const { data: existingRases } = await supabase
+        .from('rases')
+        .select('nombre_interesado, fecha_hora, carrera, agente_nombre')
+        .is('deleted_at', null);
+      const existingKeys = new Set<string>();
+      if (existingRases) {
+        for (const r of existingRases) {
+          const key = [
+            (r.nombre_interesado || '').trim().toLowerCase(),
+            normFecha(r.fecha_hora || ''),
+            (r.carrera || '').trim().toLowerCase(),
+            (r.agente_nombre || '').trim().toLowerCase(),
+          ].join('|');
+          existingKeys.add(key);
+        }
+      }
+
       let linkedCount = 0;
       let unlinkedCount = 0;
+      let duplicadosOmitidos = 0;
       for (const item of data) {
         if (!item.titulo || !item.nombre_interesado) continue;
-        // Buscar oportunidad vinculable por nombre (case-insensitive)
+
+        const agente = item.agente_nombre || 'Sin asignar';
+        const fechaHora = item.fecha_hora || new Date().toISOString();
         const nombre = item.nombre_interesado.trim().toLowerCase();
         const matchOpp = opportunities.find(o => !o.deleted_at && o.nombre?.trim().toLowerCase() === nombre);
+        const carrera = item.carrera || matchOpp?.carrera_interes || '';
+
+        // Verificar duplicado
+        const dedupKey = [
+          nombre,
+          normFecha(fechaHora),
+          carrera.trim().toLowerCase(),
+          agente.trim().toLowerCase(),
+        ].join('|');
+        if (existingKeys.has(dedupKey)) {
+          duplicadosOmitidos++;
+          continue;
+        }
+        existingKeys.add(dedupKey); // evitar duplicados dentro del mismo CSV
+
         await onAdd({
           opp_id: matchOpp?.opp_id || null,
           titulo: item.titulo,
           nombre_interesado: item.nombre_interesado,
-          agente_nombre: item.agente_nombre || 'Sin asignar',
-          fecha_hora: item.fecha_hora || new Date().toISOString(),
+          agente_nombre: agente,
+          fecha_hora: fechaHora,
           modalidad: (item.modalidad as ModalidadRAS) || ModalidadRAS.Presencial,
-          carrera: item.carrera || matchOpp?.carrera_interes || '',
+          carrera,
           estado_oportunidad: item.estado_oportunidad || matchOpp?.proceso_inicio || ''
         });
         if (matchOpp) {
-          // Sync ras_agendada en la opp
           if (onUpdateOpp && !matchOpp.ras_agendada) {
             await onUpdateOpp({ ...matchOpp, ras_agendada: true, updated_at: new Date().toISOString() });
           }
@@ -173,10 +223,22 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
         }
       }
       const total = linkedCount + unlinkedCount;
-      let msg = `Se importaron ${total} reuniones.`;
+      let msg = total > 0 ? `Se importaron ${total} reuniones.` : '';
       if (linkedCount > 0) msg += ` ${linkedCount} vinculadas a oportunidades.`;
       if (unlinkedCount > 0) msg += ` ${unlinkedCount} sin oportunidad asociada.`;
-      toast(unlinkedCount > 0 ? 'warning' : 'success', msg);
+      if (duplicadosOmitidos > 0) msg += ` ${duplicadosOmitidos} duplicada${duplicadosOmitidos > 1 ? 's' : ''} omitida${duplicadosOmitidos > 1 ? 's' : ''}.`;
+      if (total === 0 && duplicadosOmitidos > 0) msg = `Todas las reuniones (${duplicadosOmitidos}) ya existían y fueron omitidas.`;
+      toast(total === 0 ? 'warning' : unlinkedCount > 0 || duplicadosOmitidos > 0 ? 'warning' : 'success', msg);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      } catch (err: any) {
+        console.error('Error importando CSV:', err);
+        const t = traducirErrorSupabase(err);
+        toast('error', t.friendly, undefined, 8000, { context: 'Importar CSV de RAS', technical: t.technical });
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    };
+    reader.onerror = () => {
+      toast('error', 'No se pudo leer el archivo');
       if (fileInputRef.current) fileInputRef.current.value = '';
     };
     reader.readAsText(file);
@@ -229,16 +291,20 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
         await onUpdateOpp({ ...selectedOpp, ras_agendada: true, updated_at: new Date().toISOString() });
       }
       setShowAddModal(false);
-    } catch (err) {
+      toast('success', 'RAS agendada correctamente');
+    } catch (err: any) {
       console.error('Error creating RAS:', err);
+      const t = traducirErrorSupabase(err);
+      toast('error', t.friendly, undefined, 8000, { context: 'Agendar RAS', technical: t.technical });
     } finally {
       setAddSaving(false);
     }
   };
 
   const confirmDelete = async () => {
-    if (rasToDelete) {
-      onDelete(rasToDelete.ras_id);
+    if (!rasToDelete) return;
+    try {
+      await onDelete(rasToDelete.ras_id);
       // Sync: marcar ras_agendada=false en la oportunidad vinculada
       if (rasToDelete.opp_id && onUpdateOpp) {
         const linkedOpp = opportunities.find(o => o.opp_id === rasToDelete.opp_id);
@@ -247,22 +313,34 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
         }
       }
       setRasToDelete(null);
+      toast('success', 'RAS eliminada');
+    } catch (err: any) {
+      console.error('Error eliminando RAS:', err);
+      const t = traducirErrorSupabase(err);
+      toast('error', t.friendly, undefined, 8000, { context: 'Eliminar RAS', technical: t.technical });
     }
   };
 
-  const handleSaveEdit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSaveEdit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!rasToEdit) return;
     const fd = new FormData(e.currentTarget);
-    onUpdate(rasToEdit.ras_id, {
-      titulo: fd.get('titulo') as string,
-      nombre_interesado: fd.get('nombre_interesado') as string,
-      agente_nombre: fd.get('agente_nombre') as string,
-      fecha_hora: (fd.get('fecha_hora') as string) || rasToEdit.fecha_hora,
-      modalidad: fd.get('modalidad') as ModalidadRAS,
-      carrera: fd.get('carrera') as string,
-    });
-    setRasToEdit(null);
+    try {
+      await onUpdate(rasToEdit.ras_id, {
+        titulo: fd.get('titulo') as string,
+        nombre_interesado: fd.get('nombre_interesado') as string,
+        agente_nombre: fd.get('agente_nombre') as string,
+        fecha_hora: (fd.get('fecha_hora') as string) || rasToEdit.fecha_hora,
+        modalidad: fd.get('modalidad') as ModalidadRAS,
+        carrera: fd.get('carrera') as string,
+      });
+      setRasToEdit(null);
+      toast('success', 'RAS actualizada');
+    } catch (err: any) {
+      console.error('Error actualizando RAS:', err);
+      const t = traducirErrorSupabase(err);
+      toast('error', t.friendly, undefined, 8000, { context: 'Actualizar RAS', technical: t.technical });
+    }
   };
 
   return (
@@ -304,21 +382,6 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                     Exportar Imagen
-                  </button>
-                  <button
-                    onClick={() => {
-                      const charts: ChartData[] = [
-                        { title: 'Modalidad', data: stats.pieData.map(d => ({ name: d.name, value: d.value })), type: 'pie' },
-                        { title: 'RAS por Agente', data: stats.agenteData, type: 'bar-horizontal' },
-                        ...(stats.carreraData.length > 0 ? [{ title: 'RAS por Carrera', data: stats.carreraData, type: 'bar' as const }] : []),
-                      ];
-                      exportChartsAsCSV(charts, 'rases_datos');
-                      setShowActionsMenu(false);
-                    }}
-                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                    Exportar CSV
                   </button>
                   <div className="border-t border-gray-100 my-1" />
                   <button
@@ -489,10 +552,17 @@ const RasesManager: React.FC<RasesManagerProps> = ({ rases, opportunities, onAdd
             </select>
           </div>
           <div>
-            <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Estado Oportunidad</label>
+            <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Proceso</label>
             <select value={estadoFilter} onChange={(e) => setEstadoFilter(e.target.value)} className={`bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold cursor-pointer ${estadoFilter ? 'text-blue-700' : 'text-gray-700'}`}>
               <option value="">Todos</option>
               {filterOptions.estados.map(e => <option key={e} value={e}>{e}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 block">Fase</label>
+            <select value={faseFilter} onChange={(e) => setFaseFilter(e.target.value)} className={`bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold cursor-pointer ${faseFilter ? 'text-blue-700' : 'text-gray-700'}`}>
+              <option value="">Todas</option>
+              {filterOptions.fases.map(f => <option key={f} value={f}>{f}</option>)}
             </select>
           </div>
           <div>

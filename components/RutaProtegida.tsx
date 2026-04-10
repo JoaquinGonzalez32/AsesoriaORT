@@ -1,8 +1,13 @@
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import type { Rol } from '../lib/permisos';
 
-const RutaProtegida: React.FC = () => {
+interface RutaProtegidaProps {
+  requiredRol?: Rol | Rol[];
+}
+
+const RutaProtegida: React.FC<RutaProtegidaProps> = ({ requiredRol }) => {
   const { session, profile, loading, signOut } = useAuth();
 
   if (loading) {
@@ -26,6 +31,13 @@ const RutaProtegida: React.FC = () => {
         </div>
       </div>
     );
+  }
+
+  if (requiredRol) {
+    const allowed = Array.isArray(requiredRol) ? requiredRol : [requiredRol];
+    if (!profile || !allowed.includes(profile.rol)) {
+      return <Navigate to="/" replace />;
+    }
   }
 
   return <Outlet />;

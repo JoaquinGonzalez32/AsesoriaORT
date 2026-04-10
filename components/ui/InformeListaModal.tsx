@@ -176,6 +176,125 @@ async function exportToExcel(data: InformeData, listaNombre: string) {
   URL.revokeObjectURL(link.href);
 }
 
+// ─── PDF export ───────────────────────────────────────────────────────────────
+
+async function exportToPDF(data: InformeData, listaNombre: string) {
+  const { jsPDF } = await import('jspdf');
+  const autoTable = (await import('jspdf-autotable')).default;
+
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+
+  // Colors (RGB arrays)
+  const BLUE: [number, number, number] = [37, 99, 235];
+  const GREEN: [number, number, number] = [22, 163, 74];
+  const RED: [number, number, number] = [220, 38, 38];
+  const AMBER: [number, number, number] = [217, 119, 6];
+  const PURPLE: [number, number, number] = [124, 58, 237];
+  const GRAY_700: [number, number, number] = [55, 65, 81];
+
+  const BLUE_LIGHT: [number, number, number] = [239, 246, 255];
+  const GREEN_LIGHT: [number, number, number] = [240, 253, 244];
+  const RED_LIGHT: [number, number, number] = [254, 242, 242];
+  const AMBER_LIGHT: [number, number, number] = [255, 251, 235];
+  const PURPLE_LIGHT: [number, number, number] = [250, 245, 255];
+  const GRAY_BG: [number, number, number] = [249, 250, 251];
+  const TOTALES_BG: [number, number, number] = [243, 244, 246];
+
+  const headers = [
+    ['Carrera', 'Universo', '#', '%', '#', '%', '#', '%', '#', '%',
+     'Costos', 'C.Vocac.', 'Horarios', 'Mod/Ubic.', 'C.Proceso', 'Otra ORT', 'No Espec.', 'Incontact.'],
+  ];
+
+  const mapRow = (r: InformeRow) => [
+    r.carrera,
+    r.universo,
+    r.rasReciente || '—', pct(r.rasReciente, r.universo),
+    r.siguenInteresados || '—', pct(r.siguenInteresados, r.universo),
+    r.totalDesinteresados || '—', pct(r.totalDesinteresados, r.universo),
+    r.noContestan || '—', pct(r.noContestan, r.universo),
+    r.costos || '—', r.cambioVocacional || '—', r.horarios || '—', r.modalidadUbicacion || '—',
+    r.cambioProceso || '—', r.otraCarreraOrt || '—', r.noEspecifica || '—', r.incontactables || '—',
+  ];
+
+  const colColorMap: Record<number, { text: [number, number, number]; bg: [number, number, number] }> = {
+    2: { text: BLUE, bg: BLUE_LIGHT }, 3: { text: BLUE, bg: BLUE_LIGHT },
+    4: { text: GREEN, bg: GREEN_LIGHT }, 5: { text: GREEN, bg: GREEN_LIGHT },
+    6: { text: RED, bg: RED_LIGHT }, 7: { text: RED, bg: RED_LIGHT },
+    8: { text: AMBER, bg: AMBER_LIGHT }, 9: { text: AMBER, bg: AMBER_LIGHT },
+    10: { text: PURPLE, bg: PURPLE_LIGHT }, 11: { text: PURPLE, bg: PURPLE_LIGHT },
+    12: { text: PURPLE, bg: PURPLE_LIGHT }, 13: { text: PURPLE, bg: PURPLE_LIGHT },
+    14: { text: PURPLE, bg: PURPLE_LIGHT }, 15: { text: PURPLE, bg: PURPLE_LIGHT },
+    16: { text: PURPLE, bg: PURPLE_LIGHT }, 17: { text: PURPLE, bg: PURPLE_LIGHT },
+  };
+
+  const writeSection = (titulo: string, rows: InformeRow[], totales: InformeRow, startY: number) => {
+    doc.setFontSize(10);
+    doc.setTextColor(...GRAY_700);
+    doc.setFont('helvetica', 'bold');
+    doc.text(titulo, 14, startY);
+
+    const body = [...rows.map(mapRow), mapRow(totales)];
+    const totalsIdx = body.length - 1;
+
+    autoTable(doc, {
+      startY: startY + 2,
+      head: headers,
+      body,
+      theme: 'grid',
+      styles: { fontSize: 6, cellPadding: 1.5, halign: 'center', valign: 'middle', lineWidth: 0.1, lineColor: [229, 231, 235] },
+      headStyles: { fillColor: GRAY_BG, textColor: [107, 114, 128], fontStyle: 'bold', fontSize: 6 },
+      columnStyles: {
+        0: { halign: 'left', cellWidth: 18 },
+        1: { cellWidth: 12 },
+      },
+      didParseCell: (hookData: any) => {
+        const { section, row, column } = hookData;
+        const colIdx = column.index;
+
+        if (section === 'head' && colIdx >= 2) {
+          const c = colColorMap[colIdx];
+          if (c) {
+            hookData.cell.styles.fillColor = c.bg;
+            hookData.cell.styles.textColor = c.text;
+          }
+        }
+
+        if (section === 'body') {
+          const isTotals = row.index === totalsIdx;
+          if (isTotals) {
+            hookData.cell.styles.fillColor = TOTALES_BG;
+            hookData.cell.styles.fontStyle = 'bold';
+          }
+          if (colIdx >= 2) {
+            const c = colColorMap[colIdx];
+            if (c) hookData.cell.styles.textColor = c.text;
+          }
+        }
+      },
+      margin: { left: 14, right: 14 },
+    });
+
+    return (doc as any).lastAutoTable.finalY + 8;
+  };
+
+  // Title
+  doc.setFontSize(13);
+  doc.setTextColor(...GRAY_700);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Informe — ${listaNombre}`, 14, 15);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(107, 114, 128);
+  doc.text(`Generado: ${new Date().toLocaleDateString('es-UY')}  •  ${data.totalesConRas.universo + data.totalesSinRas.universo} registros`, 14, 20);
+
+  let y = 26;
+  y = writeSection(`OPORTUNIDADES CON RAS (${data.totalesConRas.universo} registros)`, data.conRas, data.totalesConRas, y);
+  writeSection(`OPORTUNIDADES SIN RAS (${data.totalesSinRas.universo} registros)`, data.sinRas, data.totalesSinRas, y);
+
+  doc.save(`informe_${listaNombre.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
+}
+
 // ─── Component ─────────────────────────────────────────────────────────────────
 
 const InformeListaModal: React.FC<InformeListaModalProps> = ({
@@ -192,7 +311,11 @@ const InformeListaModal: React.FC<InformeListaModalProps> = ({
       buildInformeLista(items).then(d => {
         setData(d);
         setLoading(false);
-      }).catch(() => setLoading(false));
+      }).catch(err => {
+        console.error('Error generando informe:', err);
+        setData(null);
+        setLoading(false);
+      });
     }
     if (!open) {
       setData(null);
@@ -203,6 +326,11 @@ const InformeListaModal: React.FC<InformeListaModalProps> = ({
     if (!data) return;
     await exportToExcel(data, listaNombre);
     setDownloaded(true);
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!data) return;
+    await exportToPDF(data, listaNombre);
   };
 
   const handleClose = () => {
@@ -317,6 +445,19 @@ const InformeListaModal: React.FC<InformeListaModalProps> = ({
             className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-all"
           >
             Cerrar
+          </button>
+          <button
+            onClick={handleDownloadPDF}
+            disabled={loading || !data}
+            className="bg-red-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-red-700 transition-all flex items-center gap-2 disabled:opacity-50"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+            </svg>
+            Descargar PDF
           </button>
           <button
             onClick={handleDownload}

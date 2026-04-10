@@ -90,7 +90,7 @@ const DashboardConfigModal: React.FC<Props> = ({ open, onClose, blocks, onUpdate
       />
 
       {/* Drawer from right */}
-      <div className="fixed inset-y-0 right-0 z-50 w-full max-w-sm bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+      <div className="fixed top-0 right-0 z-50 w-full max-w-sm max-h-[90vh] bg-white shadow-2xl rounded-bl-2xl flex flex-col animate-in slide-in-from-right duration-300">
         {/* Header */}
         <div className="px-6 py-5 border-b border-gray-100 shrink-0">
           <div className="flex items-center justify-between">
@@ -124,7 +124,7 @@ const DashboardConfigModal: React.FC<Props> = ({ open, onClose, blocks, onUpdate
         </div>
 
         {/* Sortable list — fills remaining space */}
-        <div className="flex-1 overflow-y-auto px-6 py-4">
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={blocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
               <div className="space-y-2">

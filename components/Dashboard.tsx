@@ -5,6 +5,7 @@ import { exportChartsAsImage, exportChartsAsCSV, ChartData } from '../lib/export
 import InfoTooltip from './InfoTooltip';
 import DashboardConfigModal from './DashboardConfigModal';
 import { useDashboardConfig } from '../hooks/useDashboardConfig';
+import { usePersistedState } from '../hooks/usePersistedState';
 import { CARRERAS_OPTIONS, MESES, PROCESO_OPTIONS, RESULTADO_HEX, AGENTE_COLORS, CARRERA_COLORS, FASE_HEX, CARRERA_HEX } from '../lib/shared-constants';
 
 interface DashboardProps {
@@ -15,7 +16,7 @@ interface DashboardProps {
 }
 
 const StatCard = ({ title, value, sub, iconColor, highlight }: { title: string; value: number; sub: string; iconColor: string; highlight?: boolean }) => (
-  <div className={`p-6 rounded-2xl shadow-sm border flex flex-col justify-between hover:shadow-md transition-shadow group ${highlight ? 'bg-gray-50 border-gray-200 ring-1 ring-gray-200' : 'bg-white border-gray-100'}`}>
+  <div className={`p-6 rounded-2xl shadow-sm border flex flex-col justify-between hover:shadow-md transition-shadow group ${highlight ? 'bg-cream-100/60 border-burgundy-100 ring-1 ring-burgundy-100/60' : 'bg-white border-gray-100'}`}>
     <div>
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-gray-500 font-medium text-xs uppercase tracking-wider">{title}</h3>
@@ -47,10 +48,10 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases, user
   const hasAnyEnabled = blocks.some(b => b.enabled);
 
   // ---- Global vs Month toggle ----
-  const [globalView, setGlobalView] = useState<'general' | 'mes'>('general');
+  const [globalView, setGlobalView] = usePersistedState<'general' | 'mes'>('dash_globalView', 'general');
   const now = new Date();
-  const [selectedMonth, setSelectedMonth] = useState(String(now.getMonth() + 1).padStart(2, '0'));
-  const [selectedYear, setSelectedYear] = useState(String(now.getFullYear()));
+  const [selectedMonth, setSelectedMonth] = usePersistedState('dash_selectedMonth', String(now.getMonth() + 1).padStart(2, '0'));
+  const [selectedYear, setSelectedYear] = usePersistedState('dash_selectedYear', String(now.getFullYear()));
   const filterYearMonth = `${selectedYear}-${selectedMonth}`;
 
   // ---- Global KPI (no filters) ----
@@ -79,27 +80,38 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases, user
   }), [kpiLeads, kpiOpps, activeRasesAll]);
 
   const funnelData = [
-    { name: 'Nuevos (1er C)', value: globalStats.primerContacto, color: '#3b82f6' },
-    { name: 'Contactados', value: globalStats.contactados, color: '#06b6d4' },
-    { name: 'Interesados', value: globalStats.interesados, color: '#f59e0b' },
+    { name: 'Nuevos (1er C)', value: globalStats.primerContacto, color: '#3b82f6', filterValue: ResultadoLlamada.PrimerContacto },
+    { name: 'Contactados', value: globalStats.contactados, color: '#06b6d4', filterValue: ResultadoLlamada.Contactado },
+    { name: 'Interesados', value: globalStats.interesados, color: '#f59e0b', filterValue: ResultadoLlamada.Interesado },
   ];
 
+
   // ---- Collapsible section states ----
-  const [leadSectionOpen, setLeadSectionOpen] = useState(true);
-  const [oppSectionOpen, setOppSectionOpen] = useState(true);
-  const [rasSectionOpen, setRasSectionOpen] = useState(true);
+  const [leadSectionOpen, setLeadSectionOpen] = usePersistedState('dash_leadOpen', true);
+  const leadsSectionRef = React.useRef<HTMLDivElement>(null);
+  const [oppSectionOpen, setOppSectionOpen] = usePersistedState('dash_oppOpen', true);
+  const [rasSectionOpen, setRasSectionOpen] = usePersistedState('dash_rasOpen', true);
 
   // ---- Chart visibility toggles ----
-  const [showLeadChart, setShowLeadChart] = useState(true);
-  const [showOppPipeline, setShowOppPipeline] = useState(true);
-  const [showOppCarreras, setShowOppCarreras] = useState(true);
-  const [showRasModalidad, setShowRasModalidad] = useState(true);
-  const [showRasAgente, setShowRasAgente] = useState(true);
-  const [showRasCarrera, setShowRasCarrera] = useState(true);
+  const [showLeadChart, setShowLeadChart] = usePersistedState('dash_showLeadChart', true);
+  const [showOppPipeline, setShowOppPipeline] = usePersistedState('dash_showOppPipeline', true);
+  const [showOppCarreras, setShowOppCarreras] = usePersistedState('dash_showOppCarreras', true);
+  const [showRasModalidad, setShowRasModalidad] = usePersistedState('dash_showRasModalidad', true);
+  const [showRasAgente, setShowRasAgente] = usePersistedState('dash_showRasAgente', true);
+  const [showRasCarrera, setShowRasCarrera] = usePersistedState('dash_showRasCarrera', true);
 
   // ==================== LEADS SECTION ====================
-  const [leadStatusFilter, setLeadStatusFilter] = useState('');
-  const [leadMonthFilter, setLeadMonthFilter] = useState('');
+  const [leadStatusFilter, setLeadStatusFilter] = usePersistedState('dash_leadStatus', '');
+  const [leadMonthFilter, setLeadMonthFilter] = usePersistedState('dash_leadMonth', '');
+
+  /** Drill-down: filtra Leads por resultado y scrollea a la sección. */
+  const drillToLeads = (resultado: string) => {
+    setLeadStatusFilter(resultado);
+    setLeadSectionOpen(true);
+    setTimeout(() => {
+      leadsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  };
 
   const filteredLeads = useMemo(() => {
     return activeLeads.filter(l => {
@@ -129,9 +141,9 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases, user
   }, [filteredLeads, leadStatusFilter]);
 
   // ==================== OPPORTUNITIES SECTION ====================
-  const [oppFaseFilter, setOppFaseFilter] = useState('');
-  const [oppCareerFilter, setOppCareerFilter] = useState('');
-  const [oppProcesoFilter, setOppProcesoFilter] = useState('');
+  const [oppFaseFilter, setOppFaseFilter] = usePersistedState('dash_oppFase', '');
+  const [oppCareerFilter, setOppCareerFilter] = usePersistedState('dash_oppCareer', '');
+  const [oppProcesoFilter, setOppProcesoFilter] = usePersistedState('dash_oppProceso', '');
 
   const filteredOpps = useMemo(() => {
     return activeOpps.filter(o => {
@@ -154,10 +166,10 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases, user
   }, [filteredOpps]);
 
   // ==================== RASES SECTION ====================
-  const [rasAgenteFilter, setRasAgenteFilter] = useState('');
-  const [rasModalidadFilter, setRasModalidadFilter] = useState('');
-  const [rasCarreraFilter, setRasCarreraFilter] = useState('');
-  const [rasMonthFilter, setRasMonthFilter] = useState('');
+  const [rasAgenteFilter, setRasAgenteFilter] = usePersistedState('dash_rasAgente', '');
+  const [rasModalidadFilter, setRasModalidadFilter] = usePersistedState('dash_rasModalidad', '');
+  const [rasCarreraFilter, setRasCarreraFilter] = usePersistedState('dash_rasCarrera', '');
+  const [rasMonthFilter, setRasMonthFilter] = usePersistedState('dash_rasMes', '');
 
   const activeRases = useMemo(() => (rases || []).filter(r => !r.deleted_at), [rases]);
 
@@ -357,11 +369,14 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases, user
           case 'chart-funnel':
             return (
               <div key={block.id} className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
-                <h3 className="text-lg font-bold mb-8 text-gray-800 flex items-center gap-2">
-                  <span className="w-1.5 h-6 bg-blue-600 rounded-full"></span>
-                  Datos Leads
-                  <InfoTooltip text="Distribución de leads por resultado de llamada: 1er Contacto, Contactados e Interesados. Muestra cuántos prospectos avanzan en cada etapa." />
-                </h3>
+                <div className="flex items-center justify-between mb-8">
+                  <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                    <span className="w-1.5 h-6 bg-blue-600 rounded-full"></span>
+                    Datos Leads
+                    <InfoTooltip text="Distribución de leads por resultado de llamada: 1er Contacto, Contactados e Interesados. Muestra cuántos prospectos avanzan en cada etapa." />
+                  </h3>
+                  <span className="text-[11px] font-medium text-gray-400 italic">Click en una barra para filtrar ↓</span>
+                </div>
                 <div className="h-[320px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={funnelData} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
@@ -369,7 +384,13 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases, user
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 11, fontWeight: 700 }} dy={10} />
                       <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 11, fontWeight: 700 }} />
                       <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', padding: '12px' }} cursor={{ fill: '#f9fafb' }} />
-                      <Bar dataKey="value" radius={[8, 8, 0, 0]} barSize={50}>
+                      <Bar
+                        dataKey="value"
+                        radius={[8, 8, 0, 0]}
+                        barSize={50}
+                        cursor="pointer"
+                        onClick={(data: any) => data?.filterValue && drillToLeads(data.filterValue)}
+                      >
                         {funnelData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
@@ -416,6 +437,7 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases, user
           case 'section-leads':
             return (
               <React.Fragment key={block.id}>
+                <div ref={leadsSectionRef} />
                 <SectionHeader title="Leads" subtitle={`${leadStats.total} prospectos filtrados`} open={leadSectionOpen} onToggle={() => setLeadSectionOpen(p => !p)} color="bg-blue-600" />
       {leadSectionOpen && (
         <div className="space-y-4">
