@@ -5,6 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 import { syncListaItemsWithOportunidades } from '../lib/syncListaOportunidades';
 import InfoTooltip from './InfoTooltip';
 import Breadcrumbs from './ui/Breadcrumbs';
+import InformeListaModal from './ui/InformeListaModal';
 import { ROUTES } from '../constants';
 
 interface ListaDeTrabajoItem {
@@ -71,12 +72,14 @@ const parseCSV = (text: string): Record<string, string>[] => {
 
 // ─── Tag options ──────────────────────────────────────────────────────────────
 
-const TAG_OPTIONS = ['SIN CONTACTAR', 'AGUARDANDO RESPUESTA', 'DESINTERESADO'] as const;
+const TAG_OPTIONS = ['SIN CONTACTAR', 'AGUARDANDO RESPUESTA', 'DESINTERESADO', 'SIGUEN INTERESADOS', 'RAS RECIENTE'] as const;
 
 const TAG_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   'SIN CONTACTAR':        { bg: 'bg-gray-100',   text: 'text-gray-600',   border: 'border-gray-200' },
   'AGUARDANDO RESPUESTA': { bg: 'bg-amber-50',   text: 'text-amber-700',  border: 'border-amber-200' },
   'DESINTERESADO':        { bg: 'bg-red-50',     text: 'text-red-600',    border: 'border-red-200' },
+  'SIGUEN INTERESADOS':   { bg: 'bg-green-50',   text: 'text-green-700',  border: 'border-green-200' },
+  'RAS RECIENTE':         { bg: 'bg-blue-50',    text: 'text-blue-700',   border: 'border-blue-200' },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -92,6 +95,9 @@ const ListaDetalle: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [buscar, setBuscar] = useState('');
+
+  // Export preview
+  const [showExportPreview, setShowExportPreview] = useState(false);
 
   // Import
   const [showImportModal, setShowImportModal] = useState(false);
@@ -326,20 +332,32 @@ const ListaDetalle: React.FC = () => {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button
+          <label
             onClick={toggleCompletada}
-            className={`px-4 py-2.5 rounded-xl font-bold text-sm transition-all border ${
-              lista.completada
-                ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
-                : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
-            }`}
+            className="flex items-center gap-2.5 cursor-pointer select-none group"
           >
-            <span className="flex items-center gap-2">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                {lista.completada ? <path d="M20 6L9 17l-5-5"/> : <path d="M12 5v14M5 12h14"/>}
-              </svg>
+            <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
+              lista.completada
+                ? 'bg-green-500 border-green-500'
+                : 'border-gray-300 group-hover:border-gray-400'
+            }`}>
+              {lista.completada && (
+                <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 6L9 17l-5-5"/>
+                </svg>
+              )}
+            </span>
+            <span className={`text-sm font-bold transition-colors ${lista.completada ? 'text-green-700' : 'text-gray-500 group-hover:text-gray-700'}`}>
               {lista.completada ? 'Completada' : 'Marcar completada'}
             </span>
+          </label>
+          <button
+            onClick={() => setShowExportPreview(true)}
+            className="px-4 py-2.5 rounded-xl font-bold text-sm transition-all border bg-white text-gray-600 border-gray-200 hover:bg-gray-50 flex items-center gap-2"
+            title="Informe por carrera"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            Informe
           </button>
           <button
             onClick={() => { setShowImportModal(true); setImportError(null); setCsvFile(null); }}
@@ -395,7 +413,7 @@ const ListaDetalle: React.FC = () => {
                 <th className="text-left p-4 text-[10px] font-black text-gray-400 uppercase">Carrera</th>
                 <th className="text-left p-4 text-[10px] font-black text-gray-400 uppercase">SAPE</th>
                 <th className="text-left p-4 text-[10px] font-black text-gray-400 uppercase">Proceso</th>
-                <th className="text-left p-4 text-[10px] font-black text-gray-400 uppercase"><span className="flex items-center gap-1">Tag <InfoTooltip text="Sin Contactar: aún no se intentó comunicación. Aguardando Respuesta: se contactó y se espera respuesta. Desinteresado: el prospecto no tiene interés." /></span></th>
+                <th className="text-left p-4 text-[10px] font-black text-gray-400 uppercase"><span className="flex items-center gap-1">Tag <InfoTooltip text="Sin Contactar: aún no se intentó comunicación. Aguardando Respuesta: se contactó y se espera respuesta. Desinteresado: el prospecto no tiene interés. Siguen Interesados: mantienen interés activo. RAS Reciente: tienen una RAS agendada recientemente." /></span></th>
                 <th className="text-right p-4 text-[10px] font-black text-gray-400 uppercase">Acciones</th>
               </tr>
             </thead>
@@ -440,7 +458,7 @@ const ListaDetalle: React.FC = () => {
                     <td className="p-4 text-right">
                       {item.opp_id ? (
                         <button
-                          onClick={() => navigate(`/opportunities/${item.opp_id}`)}
+                          onClick={() => navigate(`/opportunities/${item.opp_id}?fromListaId=${lista.id}&fromListaNombre=${encodeURIComponent(lista.nombre)}`)}
                           className="text-blue-600 hover:text-blue-800 text-sm font-bold"
                         >
                           Ver
@@ -461,6 +479,15 @@ const ListaDetalle: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Modal informe agregado */}
+      <InformeListaModal
+        open={showExportPreview}
+        onClose={() => setShowExportPreview(false)}
+        items={items}
+        listaNombre={lista.nombre}
+        listaId={lista.id}
+      />
 
       {/* Modal importar CSV */}
       {showImportModal && (

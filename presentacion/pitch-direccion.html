@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>CRM Asesoría — Presentación Dirección</title>
+<style>
+  :root{
+    --bg:#0b1020;
+    --bg2:#111833;
+    --ink:#e9edf7;
+    --muted:#9aa4bf;
+    --accent:#5b8cff;
+    --accent2:#3ad4a0;
+    --warn:#ffb454;
+    --danger:#ff6b8a;
+    --card:#151d3b;
+    --border:#223063;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--ink);font-family:-apple-system,"Segoe UI",Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .deck{height:100vh;width:100vw;overflow:hidden;position:relative}
+  .slide{position:absolute;inset:0;padding:6vmin 8vmin;display:none;flex-direction:column;justify-content:center;animation:fade .35s ease}
+  .slide.active{display:flex}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  h1{font-size:clamp(32px,5.2vw,72px);margin:0 0 .3em;line-height:1.05;letter-spacing:-.02em}
+  h2{font-size:clamp(26px,3.6vw,48px);margin:0 0 .6em;line-height:1.1;letter-spacing:-.01em}
+  h3{font-size:clamp(18px,2vw,26px);margin:0 0 .4em;color:var(--accent)}
+  p,li{font-size:clamp(16px,1.6vw,22px);line-height:1.45;color:var(--ink)}
+  .muted{color:var(--muted)}
+  .kicker{text-transform:uppercase;letter-spacing:.18em;font-size:13px;color:var(--accent);font-weight:600;margin-bottom:1.2em}
+  .grid{display:grid;gap:2vmin}
+  .grid-2{grid-template-columns:1fr 1fr}
+  .grid-3{grid-template-columns:repeat(3,1fr)}
+  .grid-5{grid-template-columns:repeat(5,1fr)}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:2.2vmin 2.4vmin}
+  .card h3{margin-bottom:.3em}
+  .card p{font-size:clamp(14px,1.3vw,18px);color:var(--muted);margin:0}
+  .num{font-size:clamp(28px,3.6vw,52px);font-weight:700;color:var(--accent2);line-height:1}
+  .pill{display:inline-block;padding:.35em .9em;border-radius:999px;background:rgba(91,140,255,.15);color:var(--accent);font-size:14px;font-weight:600;letter-spacing:.02em}
+  .footer{position:absolute;bottom:2vmin;left:0;right:0;display:flex;justify-content:space-between;padding:0 8vmin;color:var(--muted);font-size:13px}
+  .footer .nav{display:flex;gap:.6em}
+  .footer button{background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:.3em .7em;cursor:pointer;font-size:12px}
+  .footer button:hover{color:var(--ink);border-color:var(--accent)}
+  ul{padding-left:1.1em;margin:.5em 0}
+  li{margin:.35em 0}
+  .accent{color:var(--accent)}
+  .accent2{color:var(--accent2)}
+  .big-quote{font-size:clamp(24px,3vw,40px);font-weight:500;line-height:1.25;max-width:22ch}
+  .funnel{display:flex;flex-direction:column;gap:.6vmin;margin-top:1.5vmin}
+  .funnel div{padding:1.2vmin 2vmin;border-radius:8px;color:#0b1020;font-weight:600;font-size:clamp(15px,1.6vw,20px)}
+  .f1{background:#93c5fd;width:100%}
+  .f2{background:#fde68a;width:82%}
+  .f3{background:#fca5a5;width:58%}
+  .f4{background:#86efac;width:32%}
+  .check::before{content:"✓ ";color:var(--accent2);font-weight:700}
+  .cross::before{content:"✗ ";color:var(--danger);font-weight:700}
+  .logo{position:absolute;top:3vmin;left:8vmin;font-size:13px;color:var(--muted);letter-spacing:.2em;text-transform:uppercase}
+  .progress{position:absolute;top:0;left:0;height:3px;background:var(--accent);transition:width .3s}
+  .shot{position:relative;flex:1;min-height:0;margin-top:1.5vmin;border-radius:14px;overflow:hidden;border:1px solid var(--border);background:linear-gradient(135deg,#1a2348 0%,#0f1630 100%);display:flex;align-items:center;justify-content:center}
+  .shot img{width:100%;height:100%;object-fit:contain;display:block}
+  .shot .ph{display:flex;flex-direction:column;align-items:center;gap:1vmin;color:var(--muted);text-align:center;padding:2vmin}
+  .shot .ph-label{font-size:clamp(14px,1.3vw,18px);text-transform:uppercase;letter-spacing:.2em;color:var(--accent)}
+  .shot .ph-title{font-size:clamp(22px,2.6vw,34px);color:var(--ink);font-weight:600}
+  .shot .ph-hint{font-size:clamp(12px,1.1vw,15px);color:var(--muted);max-width:40ch}
+  .shot .ph-frame{display:grid;grid-template-columns:repeat(12,1fr);grid-template-rows:repeat(8,1fr);gap:6px;width:70%;height:60%;opacity:.35}
+  .shot .ph-frame span{background:var(--accent);border-radius:3px}
+  .shot .ph-frame span:nth-child(3n){background:var(--accent2)}
+  .shot .ph-frame span:nth-child(5n){background:var(--warn)}
+  .disclaimer{position:absolute;top:3vmin;right:8vmin;font-size:12px;color:var(--warn);border:1px solid var(--warn);padding:.3em .7em;border-radius:999px;letter-spacing:.05em}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <div class="progress" id="progress"></div>
+
+  <!-- 1: Portada -->
+  <section class="slide active">
+    <div class="logo">CRM Asesoría ORT</div>
+    <div class="kicker">Presentación a Dirección · Abril 2026</div>
+    <h1>CRM Asesoría</h1>
+    <p class="big-quote muted">Un solo lugar para Leads, Oportunidades, RAS e Inscripciones. Hecho a medida de cómo trabajamos.</p>
+    <div style="margin-top:3vmin"><span class="pill">5 minutos · 8 slides</span></div>
+  </section>
+
+  <!-- 2: El problema -->
+  <section class="slide">
+    <div class="kicker">El problema</div>
+    <h2>Los datos viven en todos lados, menos donde los necesitamos</h2>
+    <div class="grid grid-3" style="margin-top:2vmin">
+      <div class="card">
+        <h3>Dispersión</h3>
+        <p>Zoho, Excel, WhatsApp, correos. Cada asesor con su método.</p>
+      </div>
+      <div class="card">
+        <h3>Informes manuales</h3>
+        <p>Cada reporte por carrera o etapa es horas de Excel.</p>
+      </div>
+      <div class="card">
+        <h3>Cero visibilidad en vivo</h3>
+        <p>Nos enteramos tarde de lo que funciona y lo que no.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3: La solución -->
+  <section class="slide">
+    <div class="kicker">La solución</div>
+    <h2>Todo el embudo en una sola plataforma</h2>
+    <div class="funnel">
+      <div class="f1">Leads — captación y contacto inicial</div>
+      <div class="f2">Oportunidades — seguimiento por fase SAPE</div>
+      <div class="f3">RAS — reuniones con asesor académico</div>
+      <div class="f4">Inscripción — cierre</div>
+    </div>
+    <p class="muted" style="margin-top:2vmin">Alimentado directamente desde los exports de Zoho. Sin doble carga.</p>
+  </section>
+
+  <!-- 4: 5 Beneficios -->
+  <section class="slide">
+    <div class="kicker">Los 5 beneficios clave</div>
+    <h2>Qué gana la asesoría</h2>
+    <div class="grid grid-5" style="margin-top:1vmin">
+      <div class="card"><div class="num">01</div><h3>Visibilidad total</h3><p>Dashboard en vivo del embudo por etapa.</p></div>
+      <div class="card"><div class="num">02</div><h3>Cero doble carga</h3><p>Importación directa del CSV de Zoho.</p></div>
+      <div class="card"><div class="num">03</div><h3>Roles y trazabilidad</h3><p>Admin, coordinador, asesor. Cada uno en lo suyo.</p></div>
+      <div class="card"><div class="num">04</div><h3>Listas inteligentes</h3><p>El asesor sabe a quién llamar hoy.</p></div>
+      <div class="card"><div class="num">05</div><h3>Informes en un click</h3><p>Por carrera, con/sin RAS, motivos. CSV listo.</p></div>
+    </div>
+  </section>
+
+  <!-- 5: Diferencial -->
+  <section class="slide">
+    <div class="kicker">Por qué no seguir con Zoho o Excel</div>
+    <h2>Hecho a medida de la asesoría</h2>
+    <div class="grid grid-2" style="margin-top:2vmin">
+      <div class="card">
+        <h3>Habla nuestro idioma</h3>
+        <ul>
+          <li>Carreras ORT: LV, WY, LT, LD, YN, LG, VD, UI, GF, WE</li>
+          <li>Agentes RAS reales del equipo</li>
+          <li>Fases SAPE y períodos Marzo / Agosto</li>
+          <li>Motivos de desinterés tipificados</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Costo y mantenimiento</h3>
+        <ul>
+          <li class="check">Sin licencias por usuario</li>
+          <li class="check">Stack moderno (React + Supabase)</li>
+          <li class="check">Despliegue propio, datos propios</li>
+          <li class="cross">No depende de tarifas por asiento</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6: Estado -->
+  <section class="slide">
+    <div class="kicker">No es una idea. Está funcionando.</div>
+    <h2>Estado actual</h2>
+    <div class="grid grid-3" style="margin-top:2vmin">
+      <div class="card"><h3>✓ Desplegado</h3><p>Ambiente productivo, acceso desde cualquier navegador.</p></div>
+      <div class="card"><h3>✓ Autenticación y roles</h3><p>Admin, coordinador y asesor con permisos diferenciados.</p></div>
+      <div class="card"><h3>✓ Flujos completos</h3><p>Leads, Oportunidades, RAS, Listas de Trabajo e Informes.</p></div>
+      <div class="card"><h3>✓ Importación Zoho</h3><p>CSV real testeado con formato externo ZOHO.</p></div>
+      <div class="card"><h3>✓ Dashboard</h3><p>KPIs por etapa del embudo, top carreras, efectividad.</p></div>
+      <div class="card"><h3>✓ Exportaciones</h3><p>Informes agregados y CSV para reuniones.</p></div>
+    </div>
+  </section>
+
+  <!-- 7: Demo -->
+  <section class="slide">
+    <div class="kicker">Demo sugerida · 3 minutos</div>
+    <h2>Qué vamos a ver en vivo</h2>
+    <ul style="margin-top:1vmin">
+      <li><span class="accent">1.</span> <strong>Dashboard</strong> — embudo completo y KPIs por etapa.</li>
+      <li><span class="accent">2.</span> <strong>Leads</strong> — filtros por mes, importación CSV de Zoho.</li>
+      <li><span class="accent">3.</span> <strong>Oportunidad</strong> — detalle con RAS vinculada.</li>
+      <li><span class="accent">4.</span> <strong>Listas de Trabajo</strong> — quién llamar hoy, con tags.</li>
+      <li><span class="accent">5.</span> <strong>Informe por carrera</strong> — generar y descargar CSV.</li>
+    </ul>
+  </section>
+
+  <!-- Capturas: Dashboard -->
+  <section class="slide">
+    <div class="disclaimer">Datos de prueba</div>
+    <div class="kicker">Capturas · 1 de 5</div>
+    <h2>Dashboard — embudo en vivo</h2>
+    <div class="shot">
+      <!-- Reemplazar por: <img src="img/01-dashboard.png" alt="Dashboard"> -->
+      <div class="ph">
+        <div class="ph-frame"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+        <div class="ph-label">Placeholder</div>
+        <div class="ph-title">01 · Dashboard</div>
+        <div class="ph-hint">KPIs por etapa del embudo, top carreras, efectividad de contacto.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Capturas: Leads -->
+  <section class="slide">
+    <div class="disclaimer">Datos de prueba</div>
+    <div class="kicker">Capturas · 2 de 5</div>
+    <h2>Leads — tabla y filtros</h2>
+    <div class="shot">
+      <!-- Reemplazar por: <img src="img/02-leads.png" alt="Leads"> -->
+      <div class="ph">
+        <div class="ph-frame"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+        <div class="ph-label">Placeholder</div>
+        <div class="ph-title">02 · Leads</div>
+        <div class="ph-hint">Filtros por mes, estado y carrera. Importación directa del CSV de Zoho.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Capturas: Oportunidad detalle -->
+  <section class="slide">
+    <div class="disclaimer">Datos de prueba</div>
+    <div class="kicker">Capturas · 3 de 5</div>
+    <h2>Oportunidad — detalle con RAS vinculada</h2>
+    <div class="shot">
+      <!-- Reemplazar por: <img src="img/03-oportunidad.png" alt="Oportunidad"> -->
+      <div class="ph">
+        <div class="ph-frame"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+        <div class="ph-label">Placeholder</div>
+        <div class="ph-title">03 · Oportunidad</div>
+        <div class="ph-hint">Ficha completa del candidato con reunión de asesoría vinculada.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Capturas: Listas de trabajo -->
+  <section class="slide">
+    <div class="disclaimer">Datos de prueba</div>
+    <div class="kicker">Capturas · 4 de 5</div>
+    <h2>Listas de Trabajo — a quién llamar hoy</h2>
+    <div class="shot">
+      <!-- Reemplazar por: <img src="img/04-listas.png" alt="Listas de trabajo"> -->
+      <div class="ph">
+        <div class="ph-frame"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+        <div class="ph-label">Placeholder</div>
+        <div class="ph-title">04 · Listas de Trabajo</div>
+        <div class="ph-hint">Tags: Sin Contactar, Aguardando Respuesta, RAS Reciente, Desinteresado.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Capturas: Informe por carrera -->
+  <section class="slide">
+    <div class="disclaimer">Datos de prueba</div>
+    <div class="kicker">Capturas · 5 de 5</div>
+    <h2>Informe por carrera — un click, CSV listo</h2>
+    <div class="shot">
+      <!-- Reemplazar por: <img src="img/05-informe.png" alt="Informe"> -->
+      <div class="ph">
+        <div class="ph-frame"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+        <div class="ph-label">Placeholder</div>
+        <div class="ph-title">05 · Informe por carrera</div>
+        <div class="ph-hint">Agregado con y sin RAS, motivos de desinterés, exportable a CSV.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8: Cierre -->
+  <section class="slide">
+    <div class="kicker">Próximos pasos</div>
+    <h2>Lo que necesito hoy</h2>
+    <p class="big-quote">Luz verde para un <span class="accent2">piloto con el equipo de asesores</span>, medir resultados concretos y decidir el rollout completo en base a datos.</p>
+    <div class="grid grid-3" style="margin-top:3vmin">
+      <div class="card"><h3>Medimos</h3><p>Tiempo de carga, tiempo de informes, visibilidad del embudo.</p></div>
+      <div class="card"><h3>Duración</h3><p>Piloto acotado con métricas antes / después.</p></div>
+      <div class="card"><h3>Decisión</h3><p>Rollout completo basado en resultados reales.</p></div>
+    </div>
+    <p style="margin-top:3vmin" class="muted">Gracias. ¿Hablamos de los próximos pasos?</p>
+  </section>
+
+  <div class="footer">
+    <div>CRM Asesoría · Joaquín González</div>
+    <div class="nav">
+      <button onclick="prev()">← Anterior</button>
+      <span id="counter" style="align-self:center;min-width:50px;text-align:center"></span>
+      <button onclick="next()">Siguiente →</button>
+      <button onclick="document.documentElement.requestFullscreen()">Pantalla completa</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const slides=[...document.querySelectorAll('.slide')];
+  let i=0;
+  function show(n){
+    slides[i].classList.remove('active');
+    i=(n+slides.length)%slides.length;
+    slides[i].classList.add('active');
+    document.getElementById('counter').textContent=(i+1)+' / '+slides.length;
+    document.getElementById('progress').style.width=((i+1)/slides.length*100)+'%';
+  }
+  function next(){show(i+1)}
+  function prev(){show(i-1)}
+  document.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown')next();
+    if(e.key==='ArrowLeft'||e.key==='PageUp')prev();
+    if(e.key==='Home')show(0);
+    if(e.key==='End')show(slides.length-1);
+  });
+  show(0);
+</script>
+</body>
+</html>

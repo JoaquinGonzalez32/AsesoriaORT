@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Oportunidad, FaseOportunidad, LiceoTipo, ModalidadRAS } from '../types';
+import { Oportunidad, FaseOportunidad, MotivoDesinteres, LiceoTipo, ModalidadRAS } from '../types';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { exportChartsAsImage, exportChartsAsCSV, ChartData } from '../lib/exportChart';
 import { parseNLQuery, SmartCondition, NLOperator } from '../lib/nlParser';
@@ -8,7 +8,10 @@ import { supabase } from '../lib/supabase';
 import InfoTooltip from './InfoTooltip';
 import { CARRERAS_OPTIONS, PROCESO_OPTIONS, FASE_HEX, FASE_STYLE, CARRERA_HEX, CARRERA_COLORS, AGENTES_RAS, getDefaultProceso, MESES } from '../lib/shared-constants';
 import Pagination from './ui/Pagination';
+import ExportPreviewModal from './ui/ExportPreviewModal';
+import PhaseBadge from './ui/PhaseBadge';
 import { useToast } from './ui/Toast';
+import { traducirErrorSupabase } from '../lib/errorMessages';
 
 class OppErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: string | null }> {
   state = { error: null as string | null };
@@ -57,8 +60,11 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
   const [showCareerDropdown, setShowCareerDropdown] = useState(false);
   const [showCharts, setShowCharts] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(true);
+  const [multiInteresFilter, setMultiInteresFilter] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const [showExportPreview, setShowExportPreview] = useState(false);
+  const [modalFase, setModalFase] = useState<string>('');
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 30;
   const { toast } = useToast();
@@ -163,34 +169,40 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
 
   // Filtrar grupos por carrera: el contacto debe tener AL MENOS todas las carreras seleccionadas
   const filteredGroups = useMemo(() => {
+    let result = groupedBySape;
+
     if (smartConditions.length > 0) {
       const matcher = (condition: SmartCondition) => (group: { opps: Oportunidad[] }) =>
         group.opps.some(opp =>
           opp.carrera_interes === condition.carrera &&
           (condition.fase === null || opp.fase_oportunidad === condition.fase)
         );
-      return groupedBySape.filter(group =>
+      result = result.filter(group =>
         nlOperator === 'OR'
           ? smartConditions.some(c => matcher(c)(group))
           : smartConditions.every(c => matcher(c)(group))
       );
+    } else if (careerFilter.length > 0) {
+      result = result.filter(group => {
+        if (careerMode === 'all') {
+          const allInterests = new Set<string>();
+          group.opps.forEach(o => {
+            allInterests.add(o.carrera_interes);
+            if (Array.isArray(o.otros_intereses)) o.otros_intereses.forEach(i => allInterests.add(i));
+          });
+          return careerFilter.every(c => allInterests.has(c));
+        } else {
+          return group.opps.some(o => careerFilter.includes(o.carrera_interes));
+        }
+      });
     }
-    if (careerFilter.length === 0) return groupedBySape;
-    return groupedBySape.filter(group => {
-      if (careerMode === 'all') {
-        // Busca en carrera principal + otros intereses
-        const allInterests = new Set<string>();
-        group.opps.forEach(o => {
-          allInterests.add(o.carrera_interes);
-          if (Array.isArray(o.otros_intereses)) o.otros_intereses.forEach(i => allInterests.add(i));
-        });
-        return careerFilter.every(c => allInterests.has(c));
-      } else {
-        // Solo carrera principal
-        return group.opps.some(o => careerFilter.includes(o.carrera_interes));
-      }
-    });
-  }, [groupedBySape, careerFilter, careerMode, smartConditions, nlOperator]);
+
+    if (multiInteresFilter) {
+      result = result.filter(group => group.opps.length > 1);
+    }
+
+    return result;
+  }, [groupedBySape, careerFilter, careerMode, smartConditions, nlOperator, multiInteresFilter]);
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filteredGroups.length / PAGE_SIZE));
@@ -201,7 +213,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
   }, [filteredGroups, safePage]);
 
   // Reset page when filters change
-  useEffect(() => { setPage(1); }, [filter, dateFrom, dateTo, procesoFilter, faseFilter, rasAgendadaFilter, careerFilter, smartConditions, nlOperator]);
+  useEffect(() => { setPage(1); }, [filter, dateFrom, dateTo, procesoFilter, faseFilter, rasAgendadaFilter, careerFilter, smartConditions, nlOperator, multiInteresFilter]);
 
   // Opps que se muestran (para stats — uses all filtered, not just paged)
   const displayOpps = useMemo(() => {
@@ -256,6 +268,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
     setNlQuery('');
     setSmartConditions([]);
     setNlOperator('AND');
+    setMultiInteresFilter(false);
   };
 
   const handleNLSearch = (query: string) => {
@@ -324,6 +337,9 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
       multiple_interes: false,
       otros_intereses: [],
       comentario_extra: formData.get('comentario_extra'),
+      motivo_desinteres: formData.get('fase_oportunidad') === FaseOportunidad.NoInteresado
+        ? (formData.get('motivo_desinteres') || null)
+        : null,
     };
 
     // Validar SAPE duplicado
@@ -348,8 +364,10 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
     try {
       if (editingOpp) {
         await onUpdate(updatedOpp);
+        toast('success', 'Oportunidad actualizada');
       } else {
         await onAdd(updatedOpp);
+        toast('success', 'Oportunidad creada');
       }
 
       setShowModal(false);
@@ -438,6 +456,22 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
         const now = new Date().toISOString();
         const batch: { opp: Record<string, any>; fila: number; nombre: string }[] = [];
 
+        // Deduplicación: obtener oportunidades existentes por SAPE + Carrera
+        const { data: existingOpps } = await supabase
+          .from('oportunidades')
+          .select('sape, carrera_interes')
+          .is('deleted_at', null);
+        const existingKeys = new Set<string>();
+        if (existingOpps) {
+          for (const o of existingOpps) {
+            const sape = (o.sape ?? '').toString().trim().toLowerCase();
+            if (sape) {
+              existingKeys.add(`${sape}|${(o.carrera_interes || '').toLowerCase()}`);
+            }
+          }
+        }
+        let duplicadosOmitidos = 0;
+
         for (const item of data) {
           const fila = parseInt(item._fila);
           const nombreTrato = item['Nombre de Trato'] || '';
@@ -457,11 +491,22 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
             advertencias.push(`Fila ${fila} (${nombre}): fase "${faseRaw}" no reconocida, se importa como "Interesado"`);
           }
 
+          const sapeVal = item['Codigo SAPE'] || null;
+          // Verificar duplicado por SAPE + Carrera
+          if (sapeVal) {
+            const dedupKey = `${sapeVal.trim().toLowerCase()}|${carreraCode.toLowerCase()}`;
+            if (existingKeys.has(dedupKey)) {
+              duplicadosOmitidos++;
+              continue;
+            }
+            existingKeys.add(dedupKey); // evitar duplicados dentro del mismo CSV
+          }
+
           batch.push({ fila, nombre, opp: {
             nombre,
             nombre_trato: nombreTrato,
             carrera_interes: carreraCode,
-            sape: item['Codigo SAPE'] || null,
+            sape: sapeVal,
             proceso_inicio: item['Proceso'] || null,
             fase_oportunidad: fase,
             fecha_lead: now.split('T')[0],
@@ -473,7 +518,14 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
         }
 
         if (batch.length === 0) {
-          setImportResult({ type: 'error', title: 'No se encontraron oportunidades válidas en el archivo' });
+          setImportResult({
+            type: duplicadosOmitidos > 0 ? 'warning' : 'error',
+            title: duplicadosOmitidos > 0
+              ? `Todas las oportunidades (${duplicadosOmitidos}) ya existían y fueron omitidas`
+              : 'No se encontraron oportunidades válidas en el archivo',
+          });
+          setImportando(false);
+          if (fileInputRef.current) fileInputRef.current.value = '';
           return;
         }
 
@@ -500,12 +552,14 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
           });
         } else {
           onRefresh?.();
+          const hasWarnings = advertencias.length > 0 || duplicadosOmitidos > 0;
+          if (duplicadosOmitidos > 0) {
+            advertencias.unshift(`${duplicadosOmitidos} oportunidad${duplicadosOmitidos > 1 ? 'es' : ''} duplicada${duplicadosOmitidos > 1 ? 's' : ''} omitida${duplicadosOmitidos > 1 ? 's' : ''} (mismo SAPE + carrera)`);
+          }
           setImportResult({
-            type: advertencias.length > 0 ? 'warning' : 'success',
-            title: advertencias.length > 0
-              ? `Se importaron ${batch.length} oportunidades con ${advertencias.length} advertencia${advertencias.length > 1 ? 's' : ''}`
-              : `Se importaron ${batch.length} oportunidades correctamente`,
-            details: advertencias.length > 0 ? advertencias : undefined,
+            type: hasWarnings ? 'warning' : 'success',
+            title: `Se importaron ${batch.length} oportunidades${duplicadosOmitidos > 0 ? `, ${duplicadosOmitidos} duplicadas omitidas` : ''}`,
+            details: hasWarnings ? advertencias : undefined,
           });
         }
       } catch (err: any) {
@@ -519,30 +573,26 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
     reader.readAsText(file);
   };
 
+  const exportOppHeaders = ['Nombre', 'CI', 'Mail', 'Teléfono', 'Carrera', 'Liceo', 'Tipo Liceo', 'Fecha Lead', 'RAS Agendada', 'Fase', 'Proceso', 'SAPE', 'Nombre de Trato'];
+  const exportOppRows = activeOpps.map(o => [
+    o.nombre,
+    o.cedula || '',
+    o.mail || '',
+    o.telefono || '',
+    o.carrera_interes,
+    o.liceo,
+    o.liceo_tipo,
+    o.fecha_lead,
+    o.ras_agendada ? 'SÍ' : 'NO',
+    o.fase_oportunidad,
+    o.proceso_inicio,
+    o.sape != null ? String(o.sape) : '',
+    o.nombre_trato || '',
+  ]);
+
   const handleExportCSV = () => {
     if (activeOpps.length === 0) { toast('warning', 'No hay datos para exportar.'); return; }
-    const headers = ['Nombre', 'CI', 'Mail', 'Carrera', 'Liceo', 'Tipo Liceo', 'Fecha Lead', 'RAS Agendada', 'Estado'];
-    const rows = activeOpps.map(o => [
-      `"${o.nombre}"`, 
-      `"${o.cedula || ''}"`, 
-      `"${o.mail || ''}"`, 
-      `"${o.carrera_interes}"`, 
-      `"${o.liceo}"`, 
-      `"${o.liceo_tipo}"`, 
-      `"${o.fecha_lead}"`, 
-      o.ras_agendada ? 'SÍ' : 'NO',
-      `"${o.proceso_inicio}"`
-    ]);
-    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `oportunidades_export_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    setShowExportPreview(true);
   };
 
   const openOppModal = (opp: Oportunidad) => {
@@ -552,6 +602,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
     setOtrosIntereses([...orig]);
     setOriginalOtrosIntereses([...orig]);
     setMainCarrera(opp.carrera_interes);
+    setModalFase(opp.fase_oportunidad);
     setShowModal(true);
   };
 
@@ -568,8 +619,11 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
         await onUpdate({ ...opp, nombre, cedula, telefono, mail, updated_at: new Date().toISOString() });
       }
       setEditingContact(null);
-    } catch {
-      toast('error', 'Error al actualizar el contacto.');
+      toast('success', 'Contacto actualizado');
+    } catch (err: any) {
+      console.error('Error actualizando contacto:', err);
+      const t = traducirErrorSupabase(err);
+      toast('error', t.friendly, undefined, 8000, { context: 'Actualizar contacto', technical: t.technical });
     }
   };
 
@@ -743,7 +797,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
               </>
             )}
           </div>
-          <button onClick={() => { setEditingOpp(null); setMultipleInteres(false); setOtrosIntereses([]); setOriginalOtrosIntereses([]); setMainCarrera(CARRERAS_OPTIONS[0]); setShowModal(true); }} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold shadow-md hover:bg-blue-700 transition-all active:scale-95">
+          <button onClick={() => { setEditingOpp(null); setMultipleInteres(false); setOtrosIntereses([]); setOriginalOtrosIntereses([]); setMainCarrera(CARRERAS_OPTIONS[0]); setModalFase(FaseOportunidad.Interesado); setShowModal(true); }} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold shadow-md hover:bg-blue-700 transition-all active:scale-95">
             + Nueva Opp
           </button>
         </div>
@@ -949,6 +1003,17 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
                   </div>
                 )}
               </div>
+              <div className="flex items-end pb-1">
+                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={multiInteresFilter}
+                    onChange={e => setMultiInteresFilter(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                  />
+                  <span className={`text-xs font-bold ${multiInteresFilter ? 'text-purple-700' : 'text-gray-600'}`}>Con múltiple interés</span>
+                </label>
+              </div>
               <div className="flex items-end">
                 <button onClick={resetAllFilters} className="w-full bg-gray-900 text-white text-[10px] font-black uppercase py-3 rounded-xl hover:bg-black transition-all shadow-md active:scale-95">Limpiar filtros</button>
               </div>
@@ -1061,14 +1126,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
                         <tr key={opp.opp_id} className="hover:bg-blue-50/50 transition-colors border-b border-gray-50 last:border-0 text-sm">
                           <td className="py-3 px-5 font-black text-purple-600 tracking-tighter">{opp.carrera_interes}</td>
                           <td className="py-3 px-4">
-                            <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase ${
-                              opp.fase_oportunidad === FaseOportunidad.Inscripto ? 'bg-green-100 text-green-700' :
-                              opp.fase_oportunidad === FaseOportunidad.NoInteresado ? 'bg-red-100 text-red-700' :
-                              opp.fase_oportunidad === FaseOportunidad.PromesaInscripcion ? 'bg-amber-100 text-amber-700' :
-                              'bg-blue-100 text-blue-700'
-                            }`}>
-                              {opp.fase_oportunidad}
-                            </span>
+                            <PhaseBadge fase={opp.fase_oportunidad} />
                           </td>
                           <td className="py-3 px-4 text-[11px] text-gray-500 font-medium">{opp.proceso_inicio || '—'}</td>
                           <td className="py-3 px-4 text-center">
@@ -1224,10 +1282,19 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
                       </div>
                       <div>
                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Fase</label>
-                        <select name="fase_oportunidad" defaultValue={editingOpp?.fase_oportunidad} className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm font-bold bg-white text-blue-700">
+                        <select name="fase_oportunidad" defaultValue={editingOpp?.fase_oportunidad} onChange={e => setModalFase(e.target.value)} className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm font-bold bg-white text-blue-700">
                           {Object.values(FaseOportunidad).map(f => <option key={f} value={f}>{f}</option>)}
                         </select>
                       </div>
+                      {modalFase === FaseOportunidad.NoInteresado && (
+                        <div>
+                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Motivo de Desinterés</label>
+                          <select name="motivo_desinteres" defaultValue={editingOpp?.motivo_desinteres || ''} className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm font-bold bg-white">
+                            <option value="">— Sin especificar —</option>
+                            {Object.values(MotivoDesinteres).map(m => <option key={m} value={m}>{m}</option>)}
+                          </select>
+                        </div>
+                      )}
                       <div>
                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Proceso Inicio</label>
                         <select name="proceso_inicio" defaultValue={editingOpp?.proceso_inicio} className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm font-bold bg-white">
@@ -1269,7 +1336,19 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
                           message: '¿Estás seguro de que deseas eliminar esta oportunidad?',
                           confirmLabel: 'Eliminar',
                           cancelLabel: 'Cancelar',
-                          onConfirm: () => { onDelete(editingOpp.opp_id); setConfirmModal(null); setShowModal(false); },
+                          onConfirm: async () => {
+                            try {
+                              await onDelete(editingOpp.opp_id);
+                              setConfirmModal(null);
+                              setShowModal(false);
+                              toast('success', 'Oportunidad eliminada');
+                            } catch (err: any) {
+                              console.error('Error eliminando oportunidad:', err);
+                              setConfirmModal(null);
+                              const t = traducirErrorSupabase(err);
+                              toast('error', t.friendly, undefined, 8000, { context: 'Eliminar oportunidad', technical: t.technical });
+                            }
+                          },
                           onCancel: () => setConfirmModal(null),
                         });
                       }} className="text-red-500 text-xs font-black uppercase tracking-widest hover:underline">
@@ -1415,6 +1494,16 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
           </div>
         </>
       )}
+
+      {/* Export preview modal */}
+      <ExportPreviewModal
+        open={showExportPreview}
+        onClose={() => setShowExportPreview(false)}
+        title="Exportar Oportunidades"
+        headers={exportOppHeaders}
+        rows={exportOppRows}
+        filename={`oportunidades_export_${new Date().toISOString().split('T')[0]}.csv`}
+      />
     </>
   );
 };

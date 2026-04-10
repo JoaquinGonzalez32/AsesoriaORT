@@ -1,11 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Oportunidad, RAS, FaseOportunidad, LiceoTipo, ModalidadRAS, ResultadoRAS } from '../types';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { Oportunidad, RAS, FaseOportunidad, MotivoDesinteres, LiceoTipo, ModalidadRAS, ResultadoRAS } from '../types';
 import { supabase } from '../lib/supabase';
 
 import { ROUTES } from '../constants';
 import InfoTooltip from './InfoTooltip';
 import Breadcrumbs from './ui/Breadcrumbs';
+import { useToast } from './ui/Toast';
+import { traducirErrorSupabase } from '../lib/errorMessages';
 import { CARRERAS_OPTIONS, AGENTES_RAS, PROCESO_OPTIONS, FASE_HEX, FASE_STYLE } from '../lib/shared-constants';
 
 interface OportunidadDetalleProps {
@@ -24,9 +26,21 @@ const OportunidadDetalle: React.FC<OportunidadDetalleProps> = ({
 }) => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { toast } = useToast();
+  const fromListaId = searchParams.get('fromListaId');
+  const fromListaNombre = searchParams.get('fromListaNombre');
 
   const [fetchedOpp, setFetchedOpp] = useState<Oportunidad | null>(null);
   const [fetchingOpp, setFetchingOpp] = useState(false);
+
+  useEffect(() => {
+    // Scroll al tope al entrar — múltiples estrategias para cubrir distintos navegadores
+    window.scrollTo(0, 0);
+    requestAnimationFrame(() => window.scrollTo(0, 0));
+    const t = setTimeout(() => window.scrollTo(0, 0), 100);
+    return () => clearTimeout(t);
+  }, [id]);
 
   const memOpp = useMemo(() => opportunities.find(o => o.opp_id === id), [opportunities, id]);
   const opp = memOpp || fetchedOpp;
@@ -34,20 +48,28 @@ const OportunidadDetalle: React.FC<OportunidadDetalleProps> = ({
 
   // Fallback: fetch from Supabase if not in memory
   useEffect(() => {
-    if (!memOpp && id && !fetchedOpp && !fetchingOpp) {
-      setFetchingOpp(true);
-      supabase
-        .from('oportunidades')
-        .select('*')
-        .eq('opp_id', id)
-        .is('deleted_at', null)
-        .single()
-        .then(({ data }) => {
-          if (data) setFetchedOpp(data as Oportunidad);
-          setFetchingOpp(false);
-        });
-    }
-  }, [memOpp, id, fetchedOpp, fetchingOpp]);
+    if (memOpp || !id) return;
+    let cancelled = false;
+    setFetchingOpp(true);
+    supabase
+      .from('oportunidades')
+      .select('*')
+      .eq('opp_id', id)
+      .is('deleted_at', null)
+      .single()
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          console.error('Error fetching opportunity:', error);
+          const t = traducirErrorSupabase(error);
+          toast('error', t.friendly, undefined, 8000, { context: 'Cargar oportunidad', technical: t.technical });
+        } else if (data) {
+          setFetchedOpp(data as Oportunidad);
+        }
+        setFetchingOpp(false);
+      });
+    return () => { cancelled = true; };
+  }, [memOpp, id]);
   const otherOpps = useMemo(() => {
     if (!opp) return [];
     return opportunities.filter(o => !o.deleted_at && o.opp_id !== opp.opp_id && (o.nombre || '').toLowerCase() === (opp.nombre || '').toLowerCase());
@@ -90,6 +112,7 @@ const OportunidadDetalle: React.FC<OportunidadDetalleProps> = ({
         sape: opp.sape || '',
         carrera_interes: opp.carrera_interes,
         fase_oportunidad: opp.fase_oportunidad,
+        motivo_desinteres: opp.motivo_desinteres || null,
         proceso_inicio: opp.proceso_inicio,
         liceo_tipo: opp.liceo_tipo,
         ras_agendada: opp.ras_agendada,
@@ -100,7 +123,11 @@ const OportunidadDetalle: React.FC<OportunidadDetalleProps> = ({
   }, [opp]);
 
   const updateField = (field: string, value: any) => {
-    setOppForm(p => ({ ...p, [field]: value }));
+    if (field === 'fase_oportunidad' && value !== FaseOportunidad.NoInteresado) {
+      setOppForm(p => ({ ...p, [field]: value, motivo_desinteres: null }));
+    } else {
+      setOppForm(p => ({ ...p, [field]: value }));
+    }
     setFormDirty(true);
   };
 
@@ -141,8 +168,12 @@ const OportunidadDetalle: React.FC<OportunidadDetalleProps> = ({
       };
       await onUpdateOpp(updated);
       setFormDirty(false);
-    } catch (err) {
+      toast('success', 'Oportunidad actualizada');
+    } catch (err: any) {
       console.error('Error updating opportunity:', err);
+      const t = traducirErrorSupabase(err);
+      toast('error', t.friendly, undefined, 8000, { context: 'Actualizar oportunidad', technical: t.technical });
+      throw err;
     } finally {
       setSaving(false);
     }
@@ -162,8 +193,11 @@ const OportunidadDetalle: React.FC<OportunidadDetalleProps> = ({
         comentario: rasForm.comentario,
       });
       setEditingRas(false);
-    } catch (err) {
+      toast('success', 'RAS actualizada');
+    } catch (err: any) {
       console.error('Error updating RAS:', err);
+      const t = traducirErrorSupabase(err);
+      toast('error', t.friendly, undefined, 8000, { context: 'Actualizar RAS', technical: t.technical });
     } finally {
       setSaving(false);
     }
@@ -187,8 +221,11 @@ const OportunidadDetalle: React.FC<OportunidadDetalleProps> = ({
       // Update opp ras_agendada
       await onUpdateOpp({ ...opp, ras_agendada: true, updated_at: new Date().toISOString() });
       setCreatingRas(false);
-    } catch (err) {
+      toast('success', 'RAS agendada correctamente');
+    } catch (err: any) {
       console.error('Error creating RAS:', err);
+      const t = traducirErrorSupabase(err);
+      toast('error', t.friendly, undefined, 8000, { context: 'Agendar RAS', technical: t.technical });
     } finally {
       setSaving(false);
     }
@@ -201,8 +238,11 @@ const OportunidadDetalle: React.FC<OportunidadDetalleProps> = ({
       await onDeleteRas(linkedRas.ras_id);
       await onUpdateOpp({ ...opp, ras_agendada: false, updated_at: new Date().toISOString() });
       setConfirmDeleteRas(false);
-    } catch (err) {
+      toast('success', 'RAS eliminada');
+    } catch (err: any) {
       console.error('Error deleting RAS:', err);
+      const t = traducirErrorSupabase(err);
+      toast('error', t.friendly, undefined, 8000, { context: 'Eliminar RAS', technical: t.technical });
     } finally {
       setSaving(false);
     }
@@ -232,8 +272,11 @@ const OportunidadDetalle: React.FC<OportunidadDetalleProps> = ({
       setNewOppRasAgendada(false);
       setNewOppCarrera('');
       setNewOppProceso('');
-    } catch (err) {
+      toast('success', 'Oportunidad creada');
+    } catch (err: any) {
       console.error('Error creating opp:', err);
+      const t = traducirErrorSupabase(err);
+      toast('error', t.friendly, undefined, 8000, { context: 'Crear oportunidad', technical: t.technical });
     } finally {
       setAddingOpp(false);
     }
@@ -274,7 +317,9 @@ const OportunidadDetalle: React.FC<OportunidadDetalleProps> = ({
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
       <Breadcrumbs items={[
-        { label: 'Oportunidades', to: ROUTES.OPPORTUNITIES },
+        fromListaId && fromListaNombre
+          ? { label: fromListaNombre, to: `/listas-de-trabajo/${fromListaId}` }
+          : { label: 'Oportunidades', to: ROUTES.OPPORTUNITIES },
         { label: opp ? `${opp.nombre} - ${opp.carrera_interes}` : 'Cargando...' },
       ]} />
 
@@ -293,11 +338,11 @@ const OportunidadDetalle: React.FC<OportunidadDetalleProps> = ({
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => navigate(ROUTES.OPPORTUNITIES)}
+            onClick={() => navigate(fromListaId ? `/listas-de-trabajo/${fromListaId}` : ROUTES.OPPORTUNITIES)}
             className="flex items-center gap-2 text-gray-400 hover:text-gray-700 transition-colors font-bold text-sm"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m15 18-6-6 6-6"/></svg>
-            Oportunidades
+            {fromListaId && fromListaNombre ? fromListaNombre : 'Oportunidades'}
           </button>
           <div className="w-px h-6 bg-gray-200" />
           <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">{opp.nombre}</h2>
@@ -326,13 +371,13 @@ const OportunidadDetalle: React.FC<OportunidadDetalleProps> = ({
         ) : (
           <div className="flex items-center gap-3">
             <button
-              onClick={() => { if (opp) { setOppForm({ nombre: opp.nombre, cedula: opp.cedula || '', mail: opp.mail || '', telefono: opp.telefono || '', sape: opp.sape || '', carrera_interes: opp.carrera_interes, fase_oportunidad: opp.fase_oportunidad, proceso_inicio: opp.proceso_inicio, liceo_tipo: opp.liceo_tipo, ras_agendada: opp.ras_agendada, comentario_extra: opp.comentario_extra || '' }); setFormDirty(false); } setEditingOpp(false); }}
+              onClick={() => { if (opp) { setOppForm({ nombre: opp.nombre, cedula: opp.cedula || '', mail: opp.mail || '', telefono: opp.telefono || '', sape: opp.sape || '', carrera_interes: opp.carrera_interes, fase_oportunidad: opp.fase_oportunidad, motivo_desinteres: opp.motivo_desinteres || null, proceso_inicio: opp.proceso_inicio, liceo_tipo: opp.liceo_tipo, ras_agendada: opp.ras_agendada, comentario_extra: opp.comentario_extra || '' }); setFormDirty(false); } setEditingOpp(false); }}
               className="px-4 py-2 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-colors"
             >
               Cancelar
             </button>
             <button
-              onClick={() => { handleSaveOpp().then(() => setEditingOpp(false)); }}
+              onClick={() => { handleSaveOpp().then(() => setEditingOpp(false)).catch(() => {}); }}
               disabled={saving || !formDirty}
               className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors flex items-center gap-2 active:scale-95 disabled:opacity-50"
             >
@@ -359,6 +404,9 @@ const OportunidadDetalle: React.FC<OportunidadDetalleProps> = ({
               <InlineField label="SAPE" value={oppForm.sape || ''} onChange={() => {}} highlight />
               <InlineSelect label="Carrera" value={oppForm.carrera_interes || ''} onChange={v => updateField('carrera_interes', v)} options={CARRERAS_OPTIONS.map(c => ({ value: c, label: c }))} editing={editingOpp} />
               <InlineSelect label="Fase" value={oppForm.fase_oportunidad || ''} onChange={v => updateField('fase_oportunidad', v)} options={Object.values(FaseOportunidad).map(f => ({ value: f, label: f }))} editing={editingOpp} />
+              {oppForm.fase_oportunidad === FaseOportunidad.NoInteresado && (
+                <InlineSelect label="Motivo" value={oppForm.motivo_desinteres || ''} onChange={v => updateField('motivo_desinteres', v || null)} options={[{ value: '', label: '— Sin especificar —' }, ...Object.values(MotivoDesinteres).map(m => ({ value: m, label: m }))]} editing={editingOpp} />
+              )}
               <InlineSelect label="Proceso Inicio" value={oppForm.proceso_inicio || ''} onChange={v => updateField('proceso_inicio', v)} options={[{ value: '', label: '—' }, ...PROCESO_OPTIONS.map(p => ({ value: p, label: p }))]} editing={editingOpp} />
               <InlineSelect label="Tipo Liceo" value={oppForm.liceo_tipo || ''} onChange={v => updateField('liceo_tipo', v)} options={Object.values(LiceoTipo).map(t => ({ value: t, label: t }))} editing={editingOpp} />
               <InlineField label="Fecha Lead" value={oppForm.fecha_lead || opp.fecha_lead || ''} onChange={v => updateField('fecha_lead', v)} type="date" editing={editingOpp} />

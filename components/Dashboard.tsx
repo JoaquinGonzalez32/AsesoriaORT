@@ -3,16 +3,20 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Lead, Oportunidad, RAS, ResultadoLlamada, ResultadoRAS, FaseOportunidad, ModalidadRAS } from '../types';
 import { exportChartsAsImage, exportChartsAsCSV, ChartData } from '../lib/exportChart';
 import InfoTooltip from './InfoTooltip';
+import DashboardConfigModal from './DashboardConfigModal';
+import { useDashboardConfig } from '../hooks/useDashboardConfig';
+import { usePersistedState } from '../hooks/usePersistedState';
 import { CARRERAS_OPTIONS, MESES, PROCESO_OPTIONS, RESULTADO_HEX, AGENTE_COLORS, CARRERA_COLORS, FASE_HEX, CARRERA_HEX } from '../lib/shared-constants';
 
 interface DashboardProps {
   leads: Lead[];
   opportunities: Oportunidad[];
   rases: RAS[];
+  userId?: string;
 }
 
 const StatCard = ({ title, value, sub, iconColor, highlight }: { title: string; value: number; sub: string; iconColor: string; highlight?: boolean }) => (
-  <div className={`p-6 rounded-2xl shadow-sm border flex flex-col justify-between hover:shadow-md transition-shadow group ${highlight ? 'bg-gray-50 border-gray-200 ring-1 ring-gray-200' : 'bg-white border-gray-100'}`}>
+  <div className={`p-6 rounded-2xl shadow-sm border flex flex-col justify-between hover:shadow-md transition-shadow group ${highlight ? 'bg-cream-100/60 border-burgundy-100 ring-1 ring-burgundy-100/60' : 'bg-white border-gray-100'}`}>
     <div>
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-gray-500 font-medium text-xs uppercase tracking-wider">{title}</h3>
@@ -37,12 +41,17 @@ const SectionHeader = ({ title, subtitle, open, onToggle, color }: { title: stri
   </button>
 );
 
-const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) => {
+const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases, userId }) => {
+  // ---- Dashboard config ----
+  const { blocks, updateBlocks, toggleBlock, resetToDefault, enableAll, isVisible, isFirstTime } = useDashboardConfig(userId);
+  const [showConfig, setShowConfig] = useState(false);
+  const hasAnyEnabled = blocks.some(b => b.enabled);
+
   // ---- Global vs Month toggle ----
-  const [globalView, setGlobalView] = useState<'general' | 'mes'>('general');
+  const [globalView, setGlobalView] = usePersistedState<'general' | 'mes'>('dash_globalView', 'general');
   const now = new Date();
-  const [selectedMonth, setSelectedMonth] = useState(String(now.getMonth() + 1).padStart(2, '0'));
-  const [selectedYear, setSelectedYear] = useState(String(now.getFullYear()));
+  const [selectedMonth, setSelectedMonth] = usePersistedState('dash_selectedMonth', String(now.getMonth() + 1).padStart(2, '0'));
+  const [selectedYear, setSelectedYear] = usePersistedState('dash_selectedYear', String(now.getFullYear()));
   const filterYearMonth = `${selectedYear}-${selectedMonth}`;
 
   // ---- Global KPI (no filters) ----
@@ -71,27 +80,38 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) =>
   }), [kpiLeads, kpiOpps, activeRasesAll]);
 
   const funnelData = [
-    { name: 'Nuevos (1er C)', value: globalStats.primerContacto, color: '#3b82f6' },
-    { name: 'Contactados', value: globalStats.contactados, color: '#06b6d4' },
-    { name: 'Interesados', value: globalStats.interesados, color: '#f59e0b' },
+    { name: 'Nuevos (1er C)', value: globalStats.primerContacto, color: '#3b82f6', filterValue: ResultadoLlamada.PrimerContacto },
+    { name: 'Contactados', value: globalStats.contactados, color: '#06b6d4', filterValue: ResultadoLlamada.Contactado },
+    { name: 'Interesados', value: globalStats.interesados, color: '#f59e0b', filterValue: ResultadoLlamada.Interesado },
   ];
 
+
   // ---- Collapsible section states ----
-  const [leadSectionOpen, setLeadSectionOpen] = useState(true);
-  const [oppSectionOpen, setOppSectionOpen] = useState(true);
-  const [rasSectionOpen, setRasSectionOpen] = useState(true);
+  const [leadSectionOpen, setLeadSectionOpen] = usePersistedState('dash_leadOpen', true);
+  const leadsSectionRef = React.useRef<HTMLDivElement>(null);
+  const [oppSectionOpen, setOppSectionOpen] = usePersistedState('dash_oppOpen', true);
+  const [rasSectionOpen, setRasSectionOpen] = usePersistedState('dash_rasOpen', true);
 
   // ---- Chart visibility toggles ----
-  const [showLeadChart, setShowLeadChart] = useState(true);
-  const [showOppPipeline, setShowOppPipeline] = useState(true);
-  const [showOppCarreras, setShowOppCarreras] = useState(true);
-  const [showRasModalidad, setShowRasModalidad] = useState(true);
-  const [showRasAgente, setShowRasAgente] = useState(true);
-  const [showRasCarrera, setShowRasCarrera] = useState(true);
+  const [showLeadChart, setShowLeadChart] = usePersistedState('dash_showLeadChart', true);
+  const [showOppPipeline, setShowOppPipeline] = usePersistedState('dash_showOppPipeline', true);
+  const [showOppCarreras, setShowOppCarreras] = usePersistedState('dash_showOppCarreras', true);
+  const [showRasModalidad, setShowRasModalidad] = usePersistedState('dash_showRasModalidad', true);
+  const [showRasAgente, setShowRasAgente] = usePersistedState('dash_showRasAgente', true);
+  const [showRasCarrera, setShowRasCarrera] = usePersistedState('dash_showRasCarrera', true);
 
   // ==================== LEADS SECTION ====================
-  const [leadStatusFilter, setLeadStatusFilter] = useState('');
-  const [leadMonthFilter, setLeadMonthFilter] = useState('');
+  const [leadStatusFilter, setLeadStatusFilter] = usePersistedState('dash_leadStatus', '');
+  const [leadMonthFilter, setLeadMonthFilter] = usePersistedState('dash_leadMonth', '');
+
+  /** Drill-down: filtra Leads por resultado y scrollea a la sección. */
+  const drillToLeads = (resultado: string) => {
+    setLeadStatusFilter(resultado);
+    setLeadSectionOpen(true);
+    setTimeout(() => {
+      leadsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  };
 
   const filteredLeads = useMemo(() => {
     return activeLeads.filter(l => {
@@ -121,9 +141,9 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) =>
   }, [filteredLeads, leadStatusFilter]);
 
   // ==================== OPPORTUNITIES SECTION ====================
-  const [oppFaseFilter, setOppFaseFilter] = useState('');
-  const [oppCareerFilter, setOppCareerFilter] = useState('');
-  const [oppProcesoFilter, setOppProcesoFilter] = useState('');
+  const [oppFaseFilter, setOppFaseFilter] = usePersistedState('dash_oppFase', '');
+  const [oppCareerFilter, setOppCareerFilter] = usePersistedState('dash_oppCareer', '');
+  const [oppProcesoFilter, setOppProcesoFilter] = usePersistedState('dash_oppProceso', '');
 
   const filteredOpps = useMemo(() => {
     return activeOpps.filter(o => {
@@ -146,10 +166,10 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) =>
   }, [filteredOpps]);
 
   // ==================== RASES SECTION ====================
-  const [rasAgenteFilter, setRasAgenteFilter] = useState('');
-  const [rasModalidadFilter, setRasModalidadFilter] = useState('');
-  const [rasCarreraFilter, setRasCarreraFilter] = useState('');
-  const [rasMonthFilter, setRasMonthFilter] = useState('');
+  const [rasAgenteFilter, setRasAgenteFilter] = usePersistedState('dash_rasAgente', '');
+  const [rasModalidadFilter, setRasModalidadFilter] = usePersistedState('dash_rasModalidad', '');
+  const [rasCarreraFilter, setRasCarreraFilter] = usePersistedState('dash_rasCarrera', '');
+  const [rasMonthFilter, setRasMonthFilter] = usePersistedState('dash_rasMes', '');
 
   const activeRases = useMemo(() => (rases || []).filter(r => !r.deleted_at), [rases]);
 
@@ -202,7 +222,7 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) =>
   const selectClass = "bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full font-bold cursor-pointer focus:ring-2 focus:ring-blue-500 outline-none";
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-top-4 duration-500">
+    <div className="space-y-8 min-h-[calc(100vh-120px)] animate-in fade-in slide-in-from-top-4 duration-500">
       {/* ============= HEADER ============= */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -213,6 +233,13 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) =>
           <p className="text-gray-500 mt-1 font-medium">Control en tiempo real del embudo comercial</p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowConfig(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 shadow-sm transition-all active:scale-95"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+            Personalizar
+          </button>
           <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Período de datos</span>
           <div className="flex items-center bg-gray-100 rounded-xl p-1">
             <button
@@ -253,93 +280,167 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) =>
         </div>
       </div>
 
-      {/* ============= GLOBAL KPI CARDS (grouped by funnel stage) ============= */}
-      <div className="flex flex-col xl:flex-row gap-3">
-        {/* Captación */}
-        <div className="flex-1 bg-blue-50/40 rounded-2xl p-3 border border-blue-100/60">
-          <p className="text-[9px] font-black uppercase tracking-widest text-blue-400 mb-2 px-1 flex items-center gap-1">Captación <InfoTooltip text="Etapa inicial: leads nuevos que ingresan al sistema. 1er Contacto = primera llamada realizada. Contactados = se logró comunicación. Interesados = muestran interés real en inscribirse." /></p>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <StatCard title="Total Leads" value={globalStats.totalLeads} sub="Base de Datos" iconColor="bg-blue-500" highlight />
-            <StatCard title="1er Contacto" value={globalStats.primerContacto} sub="Nuevos" iconColor="bg-sky-500" />
-            <StatCard title="Contactados" value={globalStats.contactados} sub="Efectividad" iconColor="bg-cyan-500" />
-            <StatCard title="Interesados" value={globalStats.interesados} sub="Calificados" iconColor="bg-yellow-500" />
-          </div>
-        </div>
-        {/* Cierre */}
-        <div className="xl:w-[320px] bg-green-50/40 rounded-2xl p-3 border border-green-100/60">
-          <p className="text-[9px] font-black uppercase tracking-widest text-green-500 mb-2 px-1 flex items-center gap-1">Cierre <InfoTooltip text="Etapa final del embudo. RAS Agend. = reuniones de asesoramiento agendadas. Result. RAS = reuniones efectivamente realizadas (cierres exitosos)." /></p>
-          <div className="grid grid-cols-2 gap-3">
-            <StatCard title="RAS Agend." value={globalStats.rasAgendadas} sub="Agendados" iconColor="bg-indigo-500" />
-            <StatCard title="Result. RAS" value={globalStats.rasRealizadas} sub="Cierres" iconColor="bg-green-500" highlight />
-          </div>
-        </div>
-      </div>
+      {/* ============= ONBOARDING / EMPTY STATE ============= */}
+      {!hasAnyEnabled && (
+        <div className="flex items-center justify-center py-12">
+          <div className="max-w-lg w-full text-center">
+            <div className="w-20 h-20 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+            </div>
+            <h3 className="text-2xl font-extrabold text-gray-900 mb-2">
+              {isFirstTime ? 'Bienvenido a tu Dashboard' : 'Dashboard vacio'}
+            </h3>
+            <p className="text-gray-500 mb-8 leading-relaxed">
+              {isFirstTime
+                ? 'Tu panel es completamente personalizable. Elegi que bloques de datos queres ver y en que orden mostrarlos.'
+                : 'No hay bloques activos. Personaliza tu dashboard o activa la configuracion por defecto.'}
+            </p>
 
-      {/* ============= FUNNEL + TOP CARRERAS ============= */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 min-h-[450px]">
-          <h3 className="text-lg font-bold mb-8 text-gray-800 flex items-center gap-2">
-            <span className="w-1.5 h-6 bg-blue-600 rounded-full"></span>
-            Datos Leads
-            <InfoTooltip text="Distribución de leads por resultado de llamada: 1er Contacto, Contactados e Interesados. Muestra cuántos prospectos avanzan en cada etapa." />
-          </h3>
-          <div className="h-[320px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={funnelData} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 11, fontWeight: 700 }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 11, fontWeight: 700 }} />
-                <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', padding: '12px' }} cursor={{ fill: '#f9fafb' }} />
-                <Bar dataKey="value" radius={[8, 8, 0, 0]} barSize={50}>
-                  {funnelData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                  <LabelList dataKey="value" position="top" style={{ fontSize: '13px', fontWeight: 800, fill: '#374151' }} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
-          <h3 className="text-lg font-bold mb-6 text-gray-800 flex items-center gap-2">
-            <span className="w-1.5 h-6 bg-blue-600 rounded-full"></span>
-            Top Carreras por Interés
-            <InfoTooltip text="Ranking de carreras con más oportunidades de venta. Permite identificar qué carreras tienen mayor demanda en el período seleccionado." />
-          </h3>
-          <div className="space-y-5">
-            {Array.from(new Set(kpiLeads.map(l => l.carrera_interes))).filter(Boolean)
-              .map(carrera => ({ carrera, count: kpiLeads.filter(l => l.carrera_interes === carrera).length }))
-              .sort((a, b) => b.count - a.count)
-              .slice(0, 6).map(({ carrera, count }, idx) => {
-              const percentage = kpiLeads.length > 0 ? Math.round((count / kpiLeads.length) * 100) : 0;
-              const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-pink-500', 'bg-sky-500'];
-              return (
-                <div key={carrera} className="group">
-                  <div className="flex justify-between text-sm mb-1.5">
-                    <span className="font-bold text-gray-700">{carrera}</span>
-                    <span className="text-gray-400 font-black">{percentage}% <span className="text-[10px] opacity-50">({count})</span></span>
+            {isFirstTime && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8 text-left">
+                <div className="bg-white rounded-xl border border-gray-200 p-4">
+                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mb-3">
+                    <span className="text-blue-600 font-extrabold text-sm">1</span>
                   </div>
-                  <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden shadow-inner">
-                    <div className={`${colors[idx % colors.length]} h-full transition-all duration-1000 group-hover:brightness-110`} style={{ width: `${percentage}%` }}></div>
-                  </div>
+                  <p className="text-sm font-bold text-gray-800 mb-1">Elegir bloques</p>
+                  <p className="text-xs text-gray-400">Activa los KPIs, graficas y secciones que necesites ver.</p>
                 </div>
-              );
-            })}
-            {kpiLeads.length === 0 && (
-              <div className="py-10 text-center text-gray-400 italic">No hay datos de carreras registrados</div>
+                <div className="bg-white rounded-xl border border-gray-200 p-4">
+                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mb-3">
+                    <span className="text-blue-600 font-extrabold text-sm">2</span>
+                  </div>
+                  <p className="text-sm font-bold text-gray-800 mb-1">Ordenar</p>
+                  <p className="text-xs text-gray-400">Arrastra los bloques para organizarlos como prefieras.</p>
+                </div>
+                <div className="bg-white rounded-xl border border-gray-200 p-4">
+                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mb-3">
+                    <span className="text-blue-600 font-extrabold text-sm">3</span>
+                  </div>
+                  <p className="text-sm font-bold text-gray-800 mb-1">Listo</p>
+                  <p className="text-xs text-gray-400">Tu configuracion se guarda automaticamente para la proxima vez.</p>
+                </div>
+              </div>
             )}
+
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={() => setShowConfig(true)}
+                className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors active:scale-[0.98] shadow-lg shadow-blue-600/20"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                Personalizar
+              </button>
+              <button
+                onClick={enableAll}
+                className="flex items-center gap-2 px-6 py-3 bg-white border border-gray-200 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-50 transition-colors active:scale-[0.98] shadow-sm"
+              >
+                Activar todo
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* ============================================================ */}
-      {/* ============= LEADS CHARTS SECTION ============= */}
-      {/* ============================================================ */}
-      <SectionHeader title="Leads" subtitle={`${leadStats.total} prospectos filtrados`} open={leadSectionOpen} onToggle={() => setLeadSectionOpen(p => !p)} color="bg-blue-600" />
+      {/* ============= BLOCKS IN USER ORDER ============= */}
+      {blocks.filter(b => b.enabled).map(block => {
+        switch (block.id) {
+          case 'kpi-captacion':
+            return (
+              <div key={block.id} className="bg-blue-50/40 rounded-2xl p-3 border border-blue-100/60">
+                <p className="text-[9px] font-black uppercase tracking-widest text-blue-400 mb-2 px-1 flex items-center gap-1">Captación <InfoTooltip text="Etapa inicial: leads nuevos que ingresan al sistema. 1er Contacto = primera llamada realizada. Contactados = se logró comunicación. Interesados = muestran interés real en inscribirse." /></p>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  <StatCard title="Total Leads" value={globalStats.totalLeads} sub="Base de Datos" iconColor="bg-blue-500" highlight />
+                  <StatCard title="1er Contacto" value={globalStats.primerContacto} sub="Nuevos" iconColor="bg-sky-500" />
+                  <StatCard title="Contactados" value={globalStats.contactados} sub="Efectividad" iconColor="bg-cyan-500" />
+                  <StatCard title="Interesados" value={globalStats.interesados} sub="Calificados" iconColor="bg-yellow-500" />
+                </div>
+              </div>
+            );
+          case 'kpi-cierre':
+            return (
+              <div key={block.id} className="bg-green-50/40 rounded-2xl p-3 border border-green-100/60">
+                <p className="text-[9px] font-black uppercase tracking-widest text-green-500 mb-2 px-1 flex items-center gap-1">Cierre <InfoTooltip text="Etapa final del embudo. RAS Agend. = reuniones de asesoramiento agendadas. Result. RAS = reuniones efectivamente realizadas (cierres exitosos)." /></p>
+                <div className="grid grid-cols-2 gap-3">
+                  <StatCard title="RAS Agend." value={globalStats.rasAgendadas} sub="Agendados" iconColor="bg-indigo-500" />
+                  <StatCard title="Result. RAS" value={globalStats.rasRealizadas} sub="Cierres" iconColor="bg-green-500" highlight />
+                </div>
+              </div>
+            );
+          case 'chart-funnel':
+            return (
+              <div key={block.id} className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
+                <div className="flex items-center justify-between mb-8">
+                  <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                    <span className="w-1.5 h-6 bg-blue-600 rounded-full"></span>
+                    Datos Leads
+                    <InfoTooltip text="Distribución de leads por resultado de llamada: 1er Contacto, Contactados e Interesados. Muestra cuántos prospectos avanzan en cada etapa." />
+                  </h3>
+                  <span className="text-[11px] font-medium text-gray-400 italic">Click en una barra para filtrar ↓</span>
+                </div>
+                <div className="h-[320px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={funnelData} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 11, fontWeight: 700 }} dy={10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 11, fontWeight: 700 }} />
+                      <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', padding: '12px' }} cursor={{ fill: '#f9fafb' }} />
+                      <Bar
+                        dataKey="value"
+                        radius={[8, 8, 0, 0]}
+                        barSize={50}
+                        cursor="pointer"
+                        onClick={(data: any) => data?.filterValue && drillToLeads(data.filterValue)}
+                      >
+                        {funnelData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                        <LabelList dataKey="value" position="top" style={{ fontSize: '13px', fontWeight: 800, fill: '#374151' }} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            );
+          case 'chart-top-carreras':
+            return (
+              <div key={block.id} className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
+                <h3 className="text-lg font-bold mb-6 text-gray-800 flex items-center gap-2">
+                  <span className="w-1.5 h-6 bg-blue-600 rounded-full"></span>
+                  Top Carreras por Interés
+                  <InfoTooltip text="Ranking de carreras con más oportunidades de venta. Permite identificar qué carreras tienen mayor demanda en el período seleccionado." />
+                </h3>
+                <div className="space-y-5">
+                  {Array.from(new Set(kpiLeads.map(l => l.carrera_interes))).filter(Boolean)
+                    .map(carrera => ({ carrera, count: kpiLeads.filter(l => l.carrera_interes === carrera).length }))
+                    .sort((a, b) => b.count - a.count)
+                    .slice(0, 6).map(({ carrera, count }, idx) => {
+                    const percentage = kpiLeads.length > 0 ? Math.round((count / kpiLeads.length) * 100) : 0;
+                    const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-pink-500', 'bg-sky-500'];
+                    return (
+                      <div key={carrera} className="group">
+                        <div className="flex justify-between text-sm mb-1.5">
+                          <span className="font-bold text-gray-700">{carrera}</span>
+                          <span className="text-gray-400 font-black">{percentage}% <span className="text-[10px] opacity-50">({count})</span></span>
+                        </div>
+                        <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden shadow-inner">
+                          <div className={`${colors[idx % colors.length]} h-full transition-all duration-1000 group-hover:brightness-110`} style={{ width: `${percentage}%` }}></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {kpiLeads.length === 0 && (
+                    <div className="py-10 text-center text-gray-400 italic">No hay datos de carreras registrados</div>
+                  )}
+                </div>
+              </div>
+            );
+          case 'section-leads':
+            return (
+              <React.Fragment key={block.id}>
+                <div ref={leadsSectionRef} />
+                <SectionHeader title="Leads" subtitle={`${leadStats.total} prospectos filtrados`} open={leadSectionOpen} onToggle={() => setLeadSectionOpen(p => !p)} color="bg-blue-600" />
       {leadSectionOpen && (
         <div className="space-y-4">
-          {/* Filters */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
             <div className="flex flex-wrap items-end gap-4">
               <div className="w-full sm:w-48">
@@ -357,40 +458,21 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) =>
                 </select>
               </div>
               {(leadStatusFilter || leadMonthFilter) && (
-                <button onClick={() => { setLeadStatusFilter(''); setLeadMonthFilter(''); }} className="text-gray-400 hover:text-red-500 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors whitespace-nowrap">
-                  Limpiar
-                </button>
+                <button onClick={() => { setLeadStatusFilter(''); setLeadMonthFilter(''); }} className="text-gray-400 hover:text-red-500 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors whitespace-nowrap">Limpiar</button>
               )}
               <div className="flex items-end gap-2 ml-auto">
                 <EyeToggle label="Resultado" visible={showLeadChart} onToggle={() => setShowLeadChart(p => !p)} />
-                <button onClick={() => {
-                  const charts: ChartData[] = [];
-                  if (showLeadChart) charts.push({
-                    title: leadStats.chartTitle,
-                    data: leadStats.chartData.map((d, i) => ({ ...d, color: RESULTADO_HEX[d.name] || (i % 2 === 0 ? '#2563eb' : '#93c5fd') })),
-                    type: 'bar-horizontal',
-                  });
-                  if (charts.length > 0) exportChartsAsImage(charts, 'dashboard_leads_graficas');
-                }} className="bg-white border border-gray-200 text-gray-700 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-gray-50 transition-all flex items-center gap-2 active:scale-95 whitespace-nowrap">
+                <button onClick={() => { const charts: ChartData[] = []; if (showLeadChart) charts.push({ title: leadStats.chartTitle, data: leadStats.chartData.map((d, i) => ({ ...d, color: RESULTADO_HEX[d.name] || (i % 2 === 0 ? '#2563eb' : '#93c5fd') })), type: 'bar-horizontal' }); if (charts.length > 0) exportChartsAsImage(charts, 'dashboard_leads_graficas'); }} className="bg-white border border-gray-200 text-gray-700 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-gray-50 transition-all flex items-center gap-2 active:scale-95 whitespace-nowrap">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                   Imagen
                 </button>
-                <button onClick={() => {
-                  const charts: ChartData[] = [];
-                  if (showLeadChart) charts.push({
-                    title: leadStats.chartTitle,
-                    data: leadStats.chartData,
-                    type: 'bar-horizontal',
-                  });
-                  if (charts.length > 0) exportChartsAsCSV(charts, 'dashboard_leads_datos');
-                }} className="bg-white border border-gray-200 text-gray-700 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-gray-50 transition-all flex items-center gap-2 active:scale-95 whitespace-nowrap">
+                <button onClick={() => { const charts: ChartData[] = []; if (showLeadChart) charts.push({ title: leadStats.chartTitle, data: leadStats.chartData, type: 'bar-horizontal' }); if (charts.length > 0) exportChartsAsCSV(charts, 'dashboard_leads_datos'); }} className="bg-white border border-gray-200 text-gray-700 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-gray-50 transition-all flex items-center gap-2 active:scale-95 whitespace-nowrap">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                   CSV
                 </button>
               </div>
             </div>
           </div>
-          {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
             <div className="lg:col-span-1 grid grid-cols-1 gap-4">
               <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
@@ -401,10 +483,7 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) =>
             </div>
             {showLeadChart && (
             <div className="lg:col-span-3 bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-              <h5 className="text-xs font-black text-gray-900 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <span className="w-1.5 h-4 bg-blue-600 rounded-full"></span>
-                {leadStats.chartTitle}
-              </h5>
+              <h5 className="text-xs font-black text-gray-900 uppercase tracking-wider mb-4 flex items-center gap-2"><span className="w-1.5 h-4 bg-blue-600 rounded-full"></span>{leadStats.chartTitle}</h5>
               <div className="h-[120px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={leadStats.chartData} layout="vertical">
@@ -412,9 +491,7 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) =>
                     <YAxis dataKey="name" type="category" hide />
                     <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '10px' }} />
                     <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={12} animationDuration={500}>
-                      {leadStats.chartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={RESULTADO_HEX[entry.name] || (index % 2 === 0 ? '#2563eb' : '#93c5fd')} />
-                      ))}
+                      {leadStats.chartData.map((entry, index) => (<Cell key={`cell-${index}`} fill={RESULTADO_HEX[entry.name] || (index % 2 === 0 ? '#2563eb' : '#93c5fd')} />))}
                       <LabelList dataKey="value" position="right" style={{ fontSize: '10px', fontWeight: 800, fill: '#6b7280' }} />
                     </Bar>
                   </BarChart>
@@ -433,10 +510,11 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) =>
           </div>
         </div>
       )}
-
-      {/* ============================================================ */}
-      {/* ============= OPPORTUNITIES CHARTS SECTION ============= */}
-      {/* ============================================================ */}
+              </React.Fragment>
+            );
+          case 'section-opps':
+            return (
+              <React.Fragment key={block.id}>
       <SectionHeader title="Oportunidades" subtitle={`${oppStats.total} oportunidades filtradas`} open={oppSectionOpen} onToggle={() => setOppSectionOpen(p => !p)} color="bg-purple-600" />
       {oppSectionOpen && (
         <div className="space-y-4">
@@ -544,10 +622,11 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) =>
           </div>
         </div>
       )}
-
-      {/* ============================================================ */}
-      {/* ============= RASES CHARTS SECTION ============= */}
-      {/* ============================================================ */}
+              </React.Fragment>
+            );
+          case 'section-rases':
+            return (
+              <React.Fragment key={block.id}>
       <SectionHeader title="RASES" subtitle={`${rasStats.total} reuniones filtradas`} open={rasSectionOpen} onToggle={() => setRasSectionOpen(p => !p)} color="bg-green-600" />
       {rasSectionOpen && (
         <div className="space-y-4">
@@ -717,6 +796,20 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases }) =>
           )}
         </div>
       )}
+              </React.Fragment>
+            );
+          default:
+            return null;
+        }
+      })}
+      <DashboardConfigModal
+        open={showConfig}
+        onClose={() => setShowConfig(false)}
+        blocks={blocks}
+        onUpdateBlocks={updateBlocks}
+        onToggleBlock={toggleBlock}
+        onReset={resetToDefault}
+      />
     </div>
   );
 };

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { syncListaItemsWithOportunidades } from '../lib/syncListaOportunidades';
+import { traducirErrorSupabase } from '../lib/errorMessages';
 import InfoTooltip from './InfoTooltip';
 import Modal from './ui/Modal';
 import ConfirmDialog from './ui/ConfirmDialog';
@@ -216,15 +217,21 @@ const ListasTrabajo: React.FC = () => {
   const handleDeleteLista = async () => {
     if (!deletingLista) return;
     setDeleting(true);
-    // ON DELETE CASCADE borra los items automaticamente
-    const { error } = await supabase.from('listas').delete().eq('id', deletingLista.id);
-    if (error) {
-      setError(error.message);
-    } else {
+    try {
+      // ON DELETE CASCADE borra los items automaticamente
+      const { error } = await supabase.from('listas').delete().eq('id', deletingLista.id);
+      if (error) throw error;
       await fetchListas();
+      toast('success', 'Lista eliminada');
+    } catch (err: any) {
+      console.error('Error eliminando lista:', err);
+      const t = traducirErrorSupabase(err);
+      setError(t.friendly);
+      toast('error', t.friendly, undefined, 8000, { context: 'Eliminar lista de trabajo', technical: t.technical });
+    } finally {
+      setDeletingLista(null);
+      setDeleting(false);
     }
-    setDeletingLista(null);
-    setDeleting(false);
   };
 
   // ─── Toggle completada ──────────────────────────────────────────────────

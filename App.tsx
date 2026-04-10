@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
-import { ROUTES, IconDashboard, IconUsers, IconTarget, IconCalendar, IconSettings, IconListaTrabajo } from './constants';
+import { Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { ROUTES, IconDashboard, IconUsers, IconTarget, IconCalendar, IconSettings, IconListaTrabajo, IconFileBarChart } from './constants';
 import Dashboard from './components/Dashboard';
 import LeadsManager from './components/LeadsManager';
 import OpportunitiesManager from './components/OpportunitiesManager';
@@ -9,11 +9,13 @@ import OportunidadDetalle from './components/OportunidadDetalle';
 import GestionUsuarios from './components/GestionUsuarios';
 import ListasTrabajo from './components/ListasTrabajo';
 import ListaDetalle from './components/ListaDetalle';
+import InformesPage from './components/informes/InformesPage';
 import RutaProtegida from './components/RutaProtegida';
 import LoginPage from './features/auth/LoginPage';
 import RecuperarPassword from './features/auth/RecuperarPassword';
 import ActualizarPassword from './features/auth/ActualizarPassword';
 import Modal from './components/ui/Modal';
+import CommandPalette from './components/ui/CommandPalette';
 import { SkeletonDashboard } from './components/ui/Skeleton';
 import { useAuth } from './hooks/useAuth';
 import { useLeads } from './hooks/useLeads';
@@ -21,6 +23,12 @@ import { useRases } from './hooks/useRases';
 import { useOpportunities } from './hooks/useOpportunities';
 import { tienePermiso } from './lib/permisos';
 import { Lead } from './types';
+
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
+  return null;
+}
 
 const AppLayout: React.FC = () => {
   const { user, profile, signOut } = useAuth();
@@ -34,6 +42,7 @@ const AppLayout: React.FC = () => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showSoporte, setShowSoporte] = useState(false);
+  const [showPalette, setShowPalette] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
 
@@ -51,6 +60,18 @@ const AppLayout: React.FC = () => {
       }
     };
     fetchAll();
+  }, []);
+
+  // ⌘K / Ctrl+K abre command palette
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setShowPalette(p => !p);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
   }, []);
 
   // Close menus on outside click
@@ -104,6 +125,7 @@ const AppLayout: React.FC = () => {
     { to: ROUTES.OPPORTUNITIES, label: 'Oportunidades', icon: IconTarget },
     { to: ROUTES.RASES, label: 'Agenda RASES', icon: IconCalendar },
     { to: ROUTES.LISTAS_TRABAJO, label: 'Listas', icon: IconListaTrabajo },
+    { to: ROUTES.REPORTS, label: 'Informes', icon: IconFileBarChart },
   ];
 
   if (tienePermiso(profile?.rol, 'gestionarUsuarios')) {
@@ -115,9 +137,9 @@ const AppLayout: React.FC = () => {
     : null;
 
   const rolBadgeColor: Record<string, string> = {
-    admin: 'bg-red-500/20 text-red-200',
-    coordinador: 'bg-amber-500/20 text-amber-200',
-    asesor: 'bg-blue-400/20 text-blue-200',
+    admin: 'bg-gold-200/30 text-gold-200 ring-1 ring-gold-200/40',
+    coordinador: 'bg-gold-100/20 text-gold-100 ring-1 ring-gold-100/30',
+    asesor: 'bg-cream/15 text-cream-100 ring-1 ring-cream/20',
   };
 
   const renderContent = () => {
@@ -125,27 +147,30 @@ const AppLayout: React.FC = () => {
     if (error) return <div className="text-center p-20"><p className="text-red-500 font-bold">{error}</p></div>;
     return (
       <Routes>
-        <Route path={ROUTES.DASHBOARD} element={<Dashboard leads={leads} opportunities={opportunities} rases={rases} />} />
+        <Route path={ROUTES.DASHBOARD} element={<Dashboard leads={leads} opportunities={opportunities} rases={rases} userId={user?.id} />} />
         <Route path={ROUTES.LEADS} element={<LeadsManager leads={leads} onAdd={handleAddLead} onUpdate={updateLead} onDelete={deleteLead} onConvert={convertToOpportunity} onRefresh={fetchLeads} />} />
         <Route path={ROUTES.OPPORTUNITIES} element={<OpportunitiesManager opportunities={opportunities} onAdd={handleAddOpp} onUpdate={updateOpp} onDelete={deleteOpp} onRefresh={fetchOpportunities} />} />
         <Route path="/opportunities/:id" element={<OportunidadDetalle opportunities={opportunities} rases={rases} onUpdateOpp={updateOpp} onDeleteOpp={deleteOpp} onAddOpp={handleAddOpp} onAddRas={handleAddRas} onUpdateRas={updateRas} onDeleteRas={deleteRas} />} />
         <Route path={ROUTES.RASES} element={<RasesManager rases={rases} opportunities={opportunities} onAdd={handleAddRas} onUpdate={updateRas} onDelete={deleteRas} onUpdateOpp={updateOpp} />} />
-        <Route path={ROUTES.USUARIOS} element={<GestionUsuarios />} />
+        <Route element={<RutaProtegida requiredRol="admin" />}>
+          <Route path={ROUTES.USUARIOS} element={<GestionUsuarios />} />
+        </Route>
+        <Route path={ROUTES.REPORTS} element={<InformesPage leads={leads} opportunities={opportunities} rases={rases} />} />
         <Route path={ROUTES.LISTAS_TRABAJO} element={<ListasTrabajo />} />
         <Route path="/listas-de-trabajo/:id" element={<ListaDetalle />} />
-        <Route path="*" element={<Dashboard leads={leads} opportunities={opportunities} rases={rases} />} />
+        <Route path="*" element={<Dashboard leads={leads} opportunities={opportunities} rases={rases} userId={user?.id} />} />
       </Routes>
     );
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
-      <nav className="bg-blue-900 text-white w-full flex items-center px-4 md:px-6 py-3 z-20 sticky top-0 shadow-lg gap-4 md:gap-6" role="navigation" aria-label="Navegacion principal">
+    <div className="min-h-screen flex flex-col bg-cream">
+      <nav className="bg-burgundy-800 text-cream-50 w-full flex items-center px-4 md:px-6 py-3 z-20 sticky top-0 shadow-[0_1px_0_0_rgba(0,0,0,0.06),0_8px_24px_-12px_rgba(74,18,26,0.4)] gap-4 md:gap-6 border-b border-burgundy-900/40" role="navigation" aria-label="Navegacion principal">
         {/* Hamburger mobile */}
         <div className="md:hidden" ref={mobileMenuRef}>
           <button
             onClick={() => setShowMobileMenu(!showMobileMenu)}
-            className="p-2 rounded-xl hover:bg-blue-800 transition-colors focus-visible:ring-2 focus-visible:ring-blue-400"
+            className="p-2 rounded-xl hover:bg-burgundy-700 transition-colors focus-visible:ring-2 focus-visible:ring-gold-200"
             aria-label="Abrir menu de navegacion"
             aria-expanded={showMobileMenu}
           >
@@ -158,7 +183,7 @@ const AppLayout: React.FC = () => {
 
           {/* Mobile dropdown */}
           {showMobileMenu && (
-            <div className="absolute left-0 top-full w-full bg-blue-900 border-t border-blue-800 shadow-xl z-50 slide-in-from-bottom-2">
+            <div className="absolute left-0 top-full w-full bg-burgundy-800 border-t border-burgundy-900/40 shadow-xl z-50 slide-in-from-bottom-2">
               <div className="p-3 space-y-1">
                 {navItems.map((item) => (
                   <NavLink
@@ -167,7 +192,7 @@ const AppLayout: React.FC = () => {
                     end={item.to === '/'}
                     onClick={() => setShowMobileMenu(false)}
                     className={({ isActive }) =>
-                      `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${isActive ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-blue-800 text-blue-200'}`
+                      `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${isActive ? 'bg-cream text-burgundy-800 shadow-md font-semibold' : 'hover:bg-burgundy-700 text-cream-100/80'}`
                     }
                   >
                     <item.icon size={20} />
@@ -179,10 +204,14 @@ const AppLayout: React.FC = () => {
           )}
         </div>
 
-        <div className="flex items-center gap-3 mr-2 md:mr-4">
-          <IconTarget size={24} className="text-blue-200" />
-          <h1 className="hidden sm:block text-xl font-bold tracking-tight">CRM Asesoria</h1>
-        </div>
+        <NavLink to="/" className="flex items-center gap-3 mr-2 md:mr-4 no-underline">
+          <div className="w-9 h-9 rounded-full bg-cream/10 ring-1 ring-gold-200/30 flex items-center justify-center">
+            <IconTarget size={18} className="text-gold-200" />
+          </div>
+          <h1 className="hidden sm:block font-display text-2xl leading-none tracking-tight text-cream-50">
+            CRM <span className="italic text-gold-200">Asesoría</span>
+          </h1>
+        </NavLink>
 
         {/* Desktop nav */}
         <div className="hidden md:flex flex-row flex-1 items-center gap-1 md:gap-2">
@@ -192,7 +221,7 @@ const AppLayout: React.FC = () => {
               to={item.to}
               end={item.to === '/'}
               className={({ isActive }) =>
-                `flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl transition-all duration-200 focus-visible:ring-2 focus-visible:ring-blue-400 ${isActive ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-blue-800 text-blue-200'}`
+                `flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl transition-all duration-200 focus-visible:ring-2 focus-visible:ring-gold-200 ${isActive ? 'bg-cream text-burgundy-800 shadow-md font-semibold' : 'hover:bg-burgundy-700 text-cream-100/80'}`
               }
             >
               <item.icon size={20} />
@@ -204,15 +233,28 @@ const AppLayout: React.FC = () => {
         {/* Spacer for mobile */}
         <div className="flex-1 md:hidden" />
 
+        {/* Command palette trigger */}
+        <button
+          onClick={() => setShowPalette(true)}
+          className="hidden md:flex items-center gap-2 px-4 py-1.5 rounded-xl bg-burgundy-900/40 hover:bg-burgundy-900/60 ring-1 ring-cream/10 text-cream-100/70 hover:text-cream-50 transition-all focus-visible:ring-2 focus-visible:ring-gold-200 min-w-[180px]"
+          aria-label="Abrir paleta de comandos"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <span className="text-xs flex-1">Buscar</span>
+          <kbd className="font-mono text-[10px] bg-cream/10 border border-cream/20 rounded px-1.5 py-0.5 ml-auto">⌘K</kbd>
+        </button>
+
         {/* User menu */}
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
-            className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-blue-800 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-blue-400"
+            className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-burgundy-700 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-gold-200"
             aria-label="Menu de usuario"
             aria-expanded={showUserMenu}
           >
-            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold">
+            <div className="w-8 h-8 rounded-full bg-gold-200 text-burgundy-800 flex items-center justify-center text-xs font-bold ring-1 ring-gold-200/40">
               {userInitials || <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
             </div>
             <div className="hidden md:flex flex-col items-start">
@@ -221,7 +263,7 @@ const AppLayout: React.FC = () => {
                 {profile?.rol}
               </span>
             </div>
-            <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-300" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-cream-100/60" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
 
           {showUserMenu && (
@@ -253,6 +295,15 @@ const AppLayout: React.FC = () => {
       <main className="flex-1 p-4 md:p-8 min-w-0">
         <div className="space-y-6">{renderContent()}</div>
       </main>
+
+      {/* Command Palette */}
+      <CommandPalette
+        open={showPalette}
+        onClose={() => setShowPalette(false)}
+        leads={leads}
+        opportunities={opportunities}
+        rases={rases}
+      />
 
       {/* Modal Soporte */}
       <Modal open={showSoporte} onClose={() => setShowSoporte(false)} maxWidth="max-w-sm">
@@ -287,6 +338,8 @@ const AppLayout: React.FC = () => {
 
 const App: React.FC = () => {
   return (
+    <>
+    <ScrollToTop />
     <Routes>
       <Route path={ROUTES.LOGIN} element={<LoginPage />} />
       <Route path={ROUTES.RECUPERAR_PASSWORD} element={<RecuperarPassword />} />
@@ -295,6 +348,7 @@ const App: React.FC = () => {
         <Route path="/*" element={<AppLayout />} />
       </Route>
     </Routes>
+    </>
   );
 };
 

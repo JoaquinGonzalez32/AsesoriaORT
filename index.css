@@ -1,8 +1,72 @@
 @import "tailwindcss";
 
+/* ─── Design tokens — Académico contemporáneo ───────────────────────
+   Paleta crema / tinta / burdeos ORT / dorado.
+   Convive con la paleta estándar de Tailwind (gray-*, blue-*, etc).
+   Migrar superficies gradualmente a estos tokens. */
+@theme {
+  /* Neutrales cálidos */
+  --color-cream: #f7f3ec;          /* fondo principal */
+  --color-cream-50: #fbf9f4;
+  --color-cream-100: #f4efe5;
+  --color-cream-200: #ebe3d3;
+  --color-parchment: #ede5d3;      /* superficie elevada */
+
+  /* Tinta (texto) */
+  --color-ink: #1c1917;            /* texto principal */
+  --color-ink-soft: #44403c;       /* texto secundario */
+  --color-ink-muted: #78716c;      /* texto terciario */
+  --color-ink-faint: #a8a29e;      /* placeholder/disabled */
+
+  /* Burdeos ORT — color institucional */
+  --color-burgundy-50: #fdf2f3;
+  --color-burgundy-100: #fbe4e6;
+  --color-burgundy-200: #f5c1c5;
+  --color-burgundy-400: #d04a55;
+  --color-burgundy-500: #b8323e;
+  --color-burgundy-600: #9b1e2c;   /* primario */
+  --color-burgundy-700: #7d1923;
+  --color-burgundy-800: #631620;
+  --color-burgundy-900: #4a121a;
+
+  /* Dorado — acento secundario */
+  --color-gold-100: #fbf3d8;
+  --color-gold-200: #f5e3a3;
+  --color-gold-400: #d4a637;
+  --color-gold-500: #b8881f;
+  --color-gold-600: #936818;
+
+  /* Semánticos refinados (no chillones) */
+  --color-success: #4d7c4f;
+  --color-success-soft: #e8efe7;
+  --color-warning: #b8881f;
+  --color-warning-soft: #fbf3d8;
+  --color-danger: #9b1e2c;
+  --color-danger-soft: #fbe4e6;
+  --color-info: #3e5c76;
+  --color-info-soft: #e6ecf2;
+
+  /* Tipografía */
+  --font-display: 'Instrument Serif', 'Georgia', serif;
+  --font-sans: 'Inter Tight', system-ui, sans-serif;
+}
+
+/* Utilidad para titulares editoriales */
+.font-display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
 html, body, #root {
   height: 100%;
   overflow-x: hidden;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
 }
 
 /* Custom animations that were provided by the Tailwind CDN plugin */

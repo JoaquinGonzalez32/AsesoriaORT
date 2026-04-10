@@ -12,7 +12,8 @@
       "Bash(find:*)",
       "Bash(xxd:*)",
       "Bash(cd:*)",
-      "Bash(node scripts/seed-test-data.mjs)"
+      "Bash(node scripts/seed-test-data.mjs)",
+      "Bash(start:*)"
     ]
   }
 }
