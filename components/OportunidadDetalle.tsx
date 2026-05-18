@@ -405,7 +405,7 @@ const OportunidadDetalle: React.FC<OportunidadDetalleProps> = ({
               <InlineSelect label="Carrera" value={oppForm.carrera_interes || ''} onChange={v => updateField('carrera_interes', v)} options={CARRERAS_OPTIONS.map(c => ({ value: c, label: c }))} editing={editingOpp} />
               <InlineSelect label="Fase" value={oppForm.fase_oportunidad || ''} onChange={v => updateField('fase_oportunidad', v)} options={Object.values(FaseOportunidad).map(f => ({ value: f, label: f }))} editing={editingOpp} />
               {oppForm.fase_oportunidad === FaseOportunidad.NoInteresado && (
-                <InlineSelect label="Motivo" value={oppForm.motivo_desinteres || ''} onChange={v => updateField('motivo_desinteres', v || null)} options={[{ value: '', label: '— Sin especificar —' }, ...Object.values(MotivoDesinteres).map(m => ({ value: m, label: m }))]} editing={editingOpp} />
+                <InlineSelect label="Motivo" value={oppForm.motivo_desinteres || MotivoDesinteres.NoEspecifica} onChange={v => updateField('motivo_desinteres', v || MotivoDesinteres.NoEspecifica)} options={Object.values(MotivoDesinteres).map(m => ({ value: m, label: m }))} editing={editingOpp} />
               )}
               <InlineSelect label="Proceso Inicio" value={oppForm.proceso_inicio || ''} onChange={v => updateField('proceso_inicio', v)} options={[{ value: '', label: '—' }, ...PROCESO_OPTIONS.map(p => ({ value: p, label: p }))]} editing={editingOpp} />
               <InlineSelect label="Tipo Liceo" value={oppForm.liceo_tipo || ''} onChange={v => updateField('liceo_tipo', v)} options={Object.values(LiceoTipo).map(t => ({ value: t, label: t }))} editing={editingOpp} />

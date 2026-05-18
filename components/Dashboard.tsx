@@ -71,19 +71,11 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases, user
 
   const globalStats = useMemo(() => ({
     totalLeads: kpiLeads.length,
-    primerContacto: kpiLeads.filter(l => l.resultado_llamada === ResultadoLlamada.PrimerContacto).length,
-    contactados: kpiLeads.filter(l => l.resultado_llamada === ResultadoLlamada.Contactado).length,
-    interesados: kpiLeads.filter(l => l.resultado_llamada === ResultadoLlamada.Interesado).length,
     totalOpps: kpiOpps.length,
     rasAgendadas: kpiOpps.filter(o => o.ras_agendada).length,
     rasRealizadas: activeRasesAll.filter(r => r.resultado_ras === ResultadoRAS.Realizada).length,
   }), [kpiLeads, kpiOpps, activeRasesAll]);
 
-  const funnelData = [
-    { name: 'Nuevos (1er C)', value: globalStats.primerContacto, color: '#3b82f6', filterValue: ResultadoLlamada.PrimerContacto },
-    { name: 'Contactados', value: globalStats.contactados, color: '#06b6d4', filterValue: ResultadoLlamada.Contactado },
-    { name: 'Interesados', value: globalStats.interesados, color: '#f59e0b', filterValue: ResultadoLlamada.Interesado },
-  ];
 
 
   // ---- Collapsible section states ----
@@ -104,14 +96,6 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases, user
   const [leadStatusFilter, setLeadStatusFilter] = usePersistedState('dash_leadStatus', '');
   const [leadMonthFilter, setLeadMonthFilter] = usePersistedState('dash_leadMonth', '');
 
-  /** Drill-down: filtra Leads por resultado y scrollea a la sección. */
-  const drillToLeads = (resultado: string) => {
-    setLeadStatusFilter(resultado);
-    setLeadSectionOpen(true);
-    setTimeout(() => {
-      leadsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 50);
-  };
 
   const filteredLeads = useMemo(() => {
     return activeLeads.filter(l => {
@@ -344,18 +328,6 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases, user
       {/* ============= BLOCKS IN USER ORDER ============= */}
       {blocks.filter(b => b.enabled).map(block => {
         switch (block.id) {
-          case 'kpi-captacion':
-            return (
-              <div key={block.id} className="bg-blue-50/40 rounded-2xl p-3 border border-blue-100/60">
-                <p className="text-[9px] font-black uppercase tracking-widest text-blue-400 mb-2 px-1 flex items-center gap-1">Captación <InfoTooltip text="Etapa inicial: leads nuevos que ingresan al sistema. 1er Contacto = primera llamada realizada. Contactados = se logró comunicación. Interesados = muestran interés real en inscribirse." /></p>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                  <StatCard title="Total Leads" value={globalStats.totalLeads} sub="Base de Datos" iconColor="bg-blue-500" highlight />
-                  <StatCard title="1er Contacto" value={globalStats.primerContacto} sub="Nuevos" iconColor="bg-sky-500" />
-                  <StatCard title="Contactados" value={globalStats.contactados} sub="Efectividad" iconColor="bg-cyan-500" />
-                  <StatCard title="Interesados" value={globalStats.interesados} sub="Calificados" iconColor="bg-yellow-500" />
-                </div>
-              </div>
-            );
           case 'kpi-cierre':
             return (
               <div key={block.id} className="bg-green-50/40 rounded-2xl p-3 border border-green-100/60">
@@ -363,41 +335,6 @@ const Dashboard: React.FC<DashboardProps> = ({ leads, opportunities, rases, user
                 <div className="grid grid-cols-2 gap-3">
                   <StatCard title="RAS Agend." value={globalStats.rasAgendadas} sub="Agendados" iconColor="bg-indigo-500" />
                   <StatCard title="Result. RAS" value={globalStats.rasRealizadas} sub="Cierres" iconColor="bg-green-500" highlight />
-                </div>
-              </div>
-            );
-          case 'chart-funnel':
-            return (
-              <div key={block.id} className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
-                <div className="flex items-center justify-between mb-8">
-                  <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                    <span className="w-1.5 h-6 bg-blue-600 rounded-full"></span>
-                    Datos Leads
-                    <InfoTooltip text="Distribución de leads por resultado de llamada: 1er Contacto, Contactados e Interesados. Muestra cuántos prospectos avanzan en cada etapa." />
-                  </h3>
-                  <span className="text-[11px] font-medium text-gray-400 italic">Click en una barra para filtrar ↓</span>
-                </div>
-                <div className="h-[320px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={funnelData} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 11, fontWeight: 700 }} dy={10} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 11, fontWeight: 700 }} />
-                      <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', padding: '12px' }} cursor={{ fill: '#f9fafb' }} />
-                      <Bar
-                        dataKey="value"
-                        radius={[8, 8, 0, 0]}
-                        barSize={50}
-                        cursor="pointer"
-                        onClick={(data: any) => data?.filterValue && drillToLeads(data.filterValue)}
-                      >
-                        {funnelData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                        <LabelList dataKey="value" position="top" style={{ fontSize: '13px', fontWeight: 800, fill: '#374151' }} />
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
                 </div>
               </div>
             );

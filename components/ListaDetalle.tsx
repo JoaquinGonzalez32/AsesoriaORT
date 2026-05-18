@@ -3,10 +3,14 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { syncListaItemsWithOportunidades } from '../lib/syncListaOportunidades';
+import { MotivoDesinteres, FaseOportunidad } from '../types';
 import InfoTooltip from './InfoTooltip';
 import Breadcrumbs from './ui/Breadcrumbs';
 import InformeListaModal from './ui/InformeListaModal';
 import { ROUTES } from '../constants';
+import Modal from './ui/Modal';
+import { useToast } from './ui/Toast';
+import { traducirErrorSupabase } from '../lib/errorMessages';
 
 interface ListaDeTrabajoItem {
   id: string;
@@ -27,6 +31,22 @@ interface Lista {
   nombre: string;
   completada: boolean;
   created_at: string;
+  owner: string;
+}
+
+interface ListaColaborador {
+  id: string;
+  lista_id: string;
+  user_id: string;
+  created_at: string;
+  profile?: { nombre: string; apellido: string; email: string } | null;
+}
+
+interface ProfileOption {
+  id: string;
+  nombre: string;
+  apellido: string;
+  email: string;
 }
 
 // ─── Mapeo de carreras ────────────────────────────────────────────────────────
@@ -106,6 +126,20 @@ const ListaDetalle: React.FC = () => {
   const [importError, setImportError] = useState<string | null>(null);
   const [importWarnings, setImportWarnings] = useState<string[]>([]);
 
+  // Colaboradores
+  const { toast } = useToast();
+  const [showColabModal, setShowColabModal] = useState(false);
+  const [colaboradores, setColaboradores] = useState<ListaColaborador[]>([]);
+  const [allProfiles, setAllProfiles] = useState<ProfileOption[]>([]);
+  const [ownerProfile, setOwnerProfile] = useState<{ nombre: string; apellido: string } | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [addingColab, setAddingColab] = useState(false);
+
+  // Motivo desinterés
+  const [desinteresItem, setDesinteresItem] = useState<{ itemId: string; oppId: string; nombre: string } | null>(null);
+  const [desinteresMotivo, setDesinteresMotivo] = useState<MotivoDesinteres>(MotivoDesinteres.NoEspecifica);
+  const [desinteresSaving, setDesinteresSaving] = useState(false);
+
   // ─── Fetch ────────────────────────────────────────────────────────────────
 
   const fetchData = async () => {
@@ -137,6 +171,86 @@ const ListaDetalle: React.FC = () => {
 
   useEffect(() => { fetchData(); }, [id]);
 
+  // ─── Colaboradores ────────────────────────────────────────────────────────
+
+  const isOwner = lista?.owner === user?.id;
+
+  const fetchColaboradores = async () => {
+    const { data } = await supabase
+      .from('lista_colaboradores')
+      .select('*, profile:profiles!user_id(nombre, apellido, email)')
+      .eq('lista_id', id);
+    setColaboradores(data || []);
+  };
+
+  const fetchProfiles = async () => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, nombre, apellido, email')
+      .eq('activo', true)
+      .order('nombre');
+    setAllProfiles(data || []);
+  };
+
+  const fetchOwnerProfile = async (ownerId: string) => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('nombre, apellido')
+      .eq('id', ownerId)
+      .single();
+    setOwnerProfile(data);
+  };
+
+  useEffect(() => {
+    if (lista?.owner) {
+      fetchColaboradores();
+      fetchOwnerProfile(lista.owner);
+    }
+  }, [lista?.owner]);
+
+  const openColabModal = async () => {
+    await fetchProfiles();
+    await fetchColaboradores();
+    setSelectedUserId('');
+    setShowColabModal(true);
+  };
+
+  const addColaborador = async () => {
+    if (!selectedUserId) return;
+    setAddingColab(true);
+    try {
+      const { error } = await supabase
+        .from('lista_colaboradores')
+        .insert([{ lista_id: id, user_id: selectedUserId }]);
+      if (error) throw error;
+      await fetchColaboradores();
+      setSelectedUserId('');
+      toast('success', 'Colaborador agregado');
+    } catch (err: any) {
+      const t = traducirErrorSupabase(err);
+      toast('error', t.friendly, undefined, 8000, { context: 'Agregar colaborador', technical: t.technical });
+    } finally {
+      setAddingColab(false);
+    }
+  };
+
+  const removeColaborador = async (colabId: string) => {
+    try {
+      const { error } = await supabase.from('lista_colaboradores').delete().eq('id', colabId);
+      if (error) throw error;
+      await fetchColaboradores();
+      toast('success', 'Colaborador removido');
+    } catch (err: any) {
+      const t = traducirErrorSupabase(err);
+      toast('error', t.friendly, undefined, 8000, { context: 'Remover colaborador', technical: t.technical });
+    }
+  };
+
+  const availableProfiles = allProfiles.filter(p =>
+    p.id !== lista?.owner &&
+    !colaboradores.some(c => c.user_id === p.id)
+  );
+
   // ─── Toggle completada ──────────────────────────────────────────────────
 
   const toggleCompletada = async () => {
@@ -158,6 +272,13 @@ const ListaDetalle: React.FC = () => {
   const handleTagChange = async (itemId: string, newTag: string | null) => {
     const item = items.find(i => i.id === itemId);
     if (!item) return;
+
+    // Si es DESINTERESADO y tiene oportunidad vinculada, abrir modal de motivo
+    if (newTag === 'DESINTERESADO' && item.opp_id) {
+      setDesinteresItem({ itemId, oppId: item.opp_id, nombre: item.nombre || item.nombre_trato });
+      setDesinteresMotivo(MotivoDesinteres.NoEspecifica);
+      return;
+    }
 
     if (item.opp_id) {
       // Actualizar todos los items que comparten la misma oportunidad (en todas las listas)
@@ -181,6 +302,33 @@ const ListaDetalle: React.FC = () => {
       } else {
         setItems(prev => prev.map(i => i.id === itemId ? { ...i, tag: newTag } : i));
       }
+    }
+  };
+
+  const confirmDesinteres = async () => {
+    if (!desinteresItem) return;
+    setDesinteresSaving(true);
+    const fullTag = `DESINTERESADO - ${desinteresMotivo}`;
+    try {
+      // 1. Actualizar tag en listas_de_trabajo
+      const { error: tagErr } = await supabase
+        .from('listas_de_trabajo')
+        .update({ tag: fullTag })
+        .eq('opp_id', desinteresItem.oppId);
+      if (tagErr) { setError(tagErr.message); return; }
+
+      // 2. Actualizar fase y motivo en la oportunidad
+      const { error: oppErr } = await supabase
+        .from('oportunidades')
+        .update({ fase_oportunidad: FaseOportunidad.NoInteresado, motivo_desinteres: desinteresMotivo })
+        .eq('opp_id', desinteresItem.oppId);
+      if (oppErr) { setError(oppErr.message); return; }
+
+      // 3. Actualizar UI local
+      setItems(prev => prev.map(i => i.opp_id === desinteresItem.oppId ? { ...i, tag: fullTag } : i));
+      setDesinteresItem(null);
+    } finally {
+      setDesinteresSaving(false);
     }
   };
 
@@ -426,7 +574,7 @@ const ListaDetalle: React.FC = () => {
                   </td>
                 </tr>
               ) : filteredItems.map(item => {
-                const tagStyle = item.tag ? TAG_COLORS[item.tag] || TAG_COLORS['SIN CONTACTAR'] : null;
+                const tagStyle = item.tag ? TAG_COLORS[item.tag] || (item.tag.startsWith('DESINTERESADO') ? TAG_COLORS['DESINTERESADO'] : TAG_COLORS['SIN CONTACTAR']) : null;
                 return (
                   <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                     <td className="p-4 font-bold text-gray-900 max-w-[280px]">
@@ -453,6 +601,9 @@ const ListaDetalle: React.FC = () => {
                       >
                         <option value="">— Sin tag —</option>
                         {TAG_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                        {item.tag?.startsWith('DESINTERESADO - ') && (
+                          <option value={item.tag}>{item.tag}</option>
+                        )}
                       </select>
                     </td>
                     <td className="p-4 text-right">
@@ -488,6 +639,46 @@ const ListaDetalle: React.FC = () => {
         listaNombre={lista.nombre}
         listaId={lista.id}
       />
+
+      {/* Modal motivo desinterés */}
+      {desinteresItem && (
+        <>
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => !desinteresSaving && setDesinteresItem(null)} />
+          <div className="fixed inset-0 z-50 overflow-y-auto pointer-events-none">
+            <div className="min-h-full flex items-start justify-center py-8 px-4">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md pointer-events-auto animate-in zoom-in-95 duration-200">
+                <div className="px-8 py-6 bg-red-600 text-white rounded-t-2xl">
+                  <h3 className="text-xl font-bold">Marcar como Desinteresado</h3>
+                  <p className="text-sm opacity-80 mt-1">{desinteresItem.nombre}</p>
+                </div>
+                <div className="p-8 space-y-5">
+                  <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                    <p className="text-xs text-red-600 font-medium">
+                      Esta acción cambiará la fase de la oportunidad a <span className="font-bold">"No interesado"</span> y registrará el motivo seleccionado.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Motivo de Desinterés</label>
+                    <select
+                      value={desinteresMotivo}
+                      onChange={e => setDesinteresMotivo(e.target.value as MotivoDesinteres)}
+                      className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm font-bold bg-white focus:ring-2 focus:ring-red-500 outline-none"
+                    >
+                      {Object.values(MotivoDesinteres).map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="px-8 py-4 bg-gray-50 rounded-b-2xl flex justify-end gap-3">
+                  <button type="button" onClick={() => setDesinteresItem(null)} disabled={desinteresSaving} className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-all disabled:opacity-50">Cancelar</button>
+                  <button type="button" onClick={confirmDesinteres} disabled={desinteresSaving} className="bg-red-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-red-700 transition-all disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-red-600/20">
+                    {desinteresSaving ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Guardando...</>) : 'Confirmar'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Modal importar CSV */}
       {showImportModal && (

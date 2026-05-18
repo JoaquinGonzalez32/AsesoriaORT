@@ -14,6 +14,8 @@ interface Lista {
   nombre: string;
   completada: boolean;
   created_at: string;
+  owner: string;
+  owner_profile?: { nombre: string; apellido: string } | null;
   count?: number;
 }
 
@@ -85,7 +87,7 @@ const ListasTrabajo: React.FC = () => {
     setLoading(true);
     const { data, error: err } = await supabase
       .from('listas')
-      .select('*')
+      .select('*, owner_profile:profiles!owner(nombre, apellido)')
       .order('created_at', { ascending: false });
     if (err) {
       setError('Error al cargar las listas: ' + err.message);
@@ -119,7 +121,7 @@ const ListasTrabajo: React.FC = () => {
       // Crear la lista
       const { data: newLista, error: listaErr } = await supabase
         .from('listas')
-        .insert([{ nombre: newNombre.trim() }])
+        .insert([{ nombre: newNombre.trim(), owner: user?.id }])
         .select()
         .single();
       if (listaErr) throw listaErr;
@@ -311,6 +313,9 @@ const ListasTrabajo: React.FC = () => {
                     </div>
                     <p className="text-xs text-gray-400 mt-0.5">
                       {lista.count} registro{lista.count !== 1 ? 's' : ''} · {new Date(lista.created_at).toLocaleDateString('es-UY', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                      {lista.owner !== user?.id && lista.owner_profile && (
+                        <span className="ml-1">· Compartida por {lista.owner_profile.nombre} {lista.owner_profile.apellido}</span>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -326,13 +331,15 @@ const ListasTrabajo: React.FC = () => {
                   >
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
                   </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setDeletingLista(lista); }}
-                    className="text-gray-300 hover:text-red-500 p-2 rounded-lg hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
-                    title="Eliminar lista"
-                  >
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                  </button>
+                  {lista.owner === user?.id && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setDeletingLista(lista); }}
+                      className="text-gray-300 hover:text-red-500 p-2 rounded-lg hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                      title="Eliminar lista"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                  )}
                   <svg className="w-4 h-4 text-gray-300 group-hover:text-blue-500 transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
                 </div>
               </div>

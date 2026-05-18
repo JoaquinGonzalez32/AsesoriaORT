@@ -135,7 +135,7 @@ export async function buildInformeLista(items: ListaItem[]): Promise<InformeData
         const tag = item.tag;
         if (tag === 'RAS RECIENTE') row.rasReciente++;
         if (tag === 'SIGUEN INTERESADOS') row.siguenInteresados++;
-        if (tag === 'DESINTERESADO') {
+        if (tag === 'DESINTERESADO' || tag?.startsWith('DESINTERESADO - ')) {
           row.totalDesinteresados++;
           // Get motivo from opp
           const opp = item.opp_id ? oppMap.get(item.opp_id) : null;

@@ -1289,8 +1289,7 @@ const OpportunitiesManager: React.FC<OpportunitiesManagerProps> = ({ opportuniti
                       {modalFase === FaseOportunidad.NoInteresado && (
                         <div>
                           <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Motivo de Desinterés</label>
-                          <select name="motivo_desinteres" defaultValue={editingOpp?.motivo_desinteres || ''} className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm font-bold bg-white">
-                            <option value="">— Sin especificar —</option>
+                          <select name="motivo_desinteres" defaultValue={editingOpp?.motivo_desinteres || MotivoDesinteres.NoEspecifica} className="w-full border-gray-200 border rounded-xl px-4 py-2.5 text-sm font-bold bg-white">
                             {Object.values(MotivoDesinteres).map(m => <option key={m} value={m}>{m}</option>)}
                           </select>
                         </div>
