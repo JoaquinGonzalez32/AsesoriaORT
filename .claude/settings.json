@@ -1,0 +1,26 @@
+{
+  "enabledPlugins": {
+    "jarvis@joaco": true,
+    "spec@joaco": true,
+    "dev@joaco": true,
+    "design@joaco": true,
+    "audit@joaco": true,
+    "web@joaco": true,
+    "mobile@joaco": false,
+    "baffe@joaco": false,
+    "research@joaco": false,
+    "superpowers@claude-plugins-official": true,
+    "explanatory-output-style@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true,
+    "playwright@claude-plugins-official": true,
+    "supabase@claude-plugins-official": true,
+    "github@claude-plugins-official": false,
+    "ralph-loop@claude-plugins-official": false
+  },
+  "deniedMcpServers": [
+    { "serverName": "higgsfield" },
+    { "serverName": "claude.ai Canva" },
+    { "serverName": "claude.ai Slack" },
+    { "serverName": "claude.ai HyperFrames by HeyGen" }
+  ]
+}
